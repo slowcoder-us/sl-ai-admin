@@ -1,0 +1,22 @@
+{
+  "name": "@sl-ai-admin/api",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sl-ai-admin/auth": "workspace:*",
+    "@sl-ai-admin/db": "workspace:*",
+    "@trpc/client": "catalog:",
+    "@trpc/server": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@sl-ai-admin/config": "workspace:*",
+    "typescript": "^6.0.3"
+  }
+}

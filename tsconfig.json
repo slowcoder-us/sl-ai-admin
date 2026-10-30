@@ -1,0 +1,3 @@
+{
+  "extends": "@sl-ai-admin/config/tsconfig.base.json"
+}

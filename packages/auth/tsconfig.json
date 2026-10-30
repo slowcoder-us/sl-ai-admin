@@ -1,0 +1,6 @@
+{
+  "extends": "@sl-ai-admin/config/tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  }
+}
