@@ -9,6 +9,7 @@ import {
 	SERVER_URL,
 	signUpViaApi,
 	submitButton,
+	TEST_ACCOUNT,
 	TEST_PASSWORD,
 	WEB_ORIGIN,
 } from "./helpers";
@@ -60,7 +61,7 @@ test.describe("sign up", () => {
 			`${SERVER_URL}/api/auth/sign-up/email`,
 			{
 				data: {
-					email: "victim@example.com",
+					email: `${username}@example.com`,
 					name: "x",
 					password: TEST_PASSWORD,
 					username,
@@ -100,7 +101,7 @@ test.describe("sign up", () => {
 			{
 				data: {
 					displayUsername: "SomeoneElse",
-					email: "x@example.com",
+					email: `${username}@example.com`,
 					name: "x",
 					password: TEST_PASSWORD,
 					username,
@@ -198,15 +199,9 @@ test.describe("sign in", () => {
 		expect(response.status()).toBe(404);
 	});
 
-	test("AC7: signs in with username and password", async ({
-		page,
-		request,
-	}) => {
-		const username = randomUsername();
-		expect((await signUpViaApi(request, username)).ok()).toBe(true);
-
+	test("AC7: signs in with username and password", async ({ page }) => {
 		await page.goto("/login");
-		await fillSignInForm(page, username, TEST_PASSWORD);
+		await fillSignInForm(page, TEST_ACCOUNT.username, TEST_ACCOUNT.password);
 		await submitButton(page).click();
 
 		await expect(page).toHaveURL(DASHBOARD_URL);
@@ -214,13 +209,9 @@ test.describe("sign in", () => {
 
 	test("AC8: wrong password and unknown user show the same error", async ({
 		page,
-		request,
 	}) => {
-		const username = randomUsername();
-		expect((await signUpViaApi(request, username)).ok()).toBe(true);
-
 		await page.goto("/login");
-		await fillSignInForm(page, username, "wrong-password");
+		await fillSignInForm(page, TEST_ACCOUNT.username, "wrong-password");
 		await submitButton(page).click();
 		await expect(
 			page.getByText(AUTH_MESSAGES.invalidCredentials)
@@ -237,11 +228,7 @@ test.describe("sign in", () => {
 
 	test("AC9: submit button is disabled with a loading label while pending", async ({
 		page,
-		request,
 	}) => {
-		const username = randomUsername();
-		expect((await signUpViaApi(request, username)).ok()).toBe(true);
-
 		let release: () => void = () => undefined;
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
@@ -252,7 +239,7 @@ test.describe("sign in", () => {
 		});
 
 		await page.goto("/login");
-		await fillSignInForm(page, username, TEST_PASSWORD);
+		await fillSignInForm(page, TEST_ACCOUNT.username, TEST_ACCOUNT.password);
 		await submitButton(page).click();
 
 		const pending = page

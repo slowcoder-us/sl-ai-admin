@@ -10,6 +10,8 @@ export default defineConfig({
 	expect: { timeout: ASSERTION_TIMEOUT_MS },
 	forbidOnly: Boolean(process.env.CI),
 	fullyParallel: true,
+	globalSetup: "./e2e/global-setup.ts",
+	globalTeardown: "./e2e/global-teardown.ts",
 	projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 	reporter: "list",
 	retries: 0,

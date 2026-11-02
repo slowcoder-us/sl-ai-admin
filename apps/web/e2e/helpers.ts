@@ -5,15 +5,29 @@ export const SERVER_URL = "http://localhost:3000";
 export const WEB_ORIGIN = "http://localhost:3001";
 export const TEST_PASSWORD = "password123";
 
+/**
+ * Shared long-lived account for tests that only need "an existing user".
+ * Created by global-setup if missing and never deleted.
+ */
+export const TEST_ACCOUNT = { password: "test1234", username: "test" } as const;
+
+/**
+ * Every account a test registers must use this prefix: global-teardown deletes
+ * all users whose email starts with it.
+ */
+export const TEMP_USER_PREFIX = "e2e_";
+
 const RANDOM_SUFFIX_LENGTH = 8;
 
-/** Unique per test so specs never depend on database cleanup. */
-export function randomUsername(prefix = "e2e"): string {
+/** A throwaway username, removed by global-teardown after the run. */
+export function randomUsername(label?: string): string {
 	const suffix = crypto
 		.randomUUID()
 		.replaceAll("-", "")
 		.slice(0, RANDOM_SUFFIX_LENGTH);
-	return `${prefix}_${suffix}`;
+	return label
+		? `${TEMP_USER_PREFIX}${label}_${suffix}`
+		: `${TEMP_USER_PREFIX}${suffix}`;
 }
 
 export function signUpViaApi(
@@ -28,6 +42,14 @@ export function signUpViaApi(
 			password,
 			username,
 		},
+		headers: { Origin: WEB_ORIGIN },
+	});
+}
+
+/** Signs `request` (or a page's `page.request`) in as the shared test account. */
+export function signInAsTestAccount(request: APIRequestContext) {
+	return request.post(`${SERVER_URL}/api/auth/sign-in/username`, {
+		data: TEST_ACCOUNT,
 		headers: { Origin: WEB_ORIGIN },
 	});
 }

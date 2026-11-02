@@ -79,7 +79,7 @@ AGENTS.md 正文新增：账号是用户名制的约定（注册 / 登录写法�
 3. 部署时 web 与 server 若不在同一域名，`proxy.ts` 读不到会话 cookie（cookie 在 server 域名下）。页面层 `getServerSession()` 仍会正确拦截，但 Proxy 的提前跳转会失效；跨域部署方案不在本期范围。
 4. Better Auth 的接口限流默认只在生产环境（`NODE_ENV=production`）开启，开发环境下登录接口可被暴力尝试。
 5. 「用户名已被注册」提示（PRD 要求）和默认开启的 `/is-username-available` 接口都能用来探测用户名是否存在。如需防枚举，可在 `disabledPaths` 加 `/is-username-available`。
-6. 本地开发库里留有 E2E 产生的测试用户（`e2e_` 等前缀的随机用户名），不影响功能。
+6. ~~本地开发库里留有 E2E 产生的测试用户~~ → 已解决（交付后追加）：已清理历史测试用户；E2E 现在跑完自动删除临时用户，只保留共享账号 `test` / `test1234`。
 7. 上面依赖审计列出的 4 个既有漏洞，需要随 Expo / shadcn 升级处理。
 
 ## 如何验证
@@ -93,7 +93,7 @@ pnpm dev:server                            # 终端 1，:3000
 pnpm dev:web                               # 终端 2，:3001
 ```
 
-关键路径（没有预置测试账号，自己注册一个即可）：
+关键路径（可用共享测试账号 `test` / `test1234` 登录，也可自己注册）：
 1. 打开 http://localhost:3001/dashboard → 自动跳到 `/login`
 2. 点「还没有账号？去注册」→ 用户名 `Alice_01`、密码 8 位以上 → 注册后进入后台，显示「欢迎，Alice_01」
 3. 右上角点用户名 → 「退出登录」→ 回到登录页；再访问 `/dashboard` 仍被拦回

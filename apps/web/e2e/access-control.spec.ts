@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { randomUsername, SERVER_URL, signUpViaApi } from "./helpers";
+import {
+	randomUsername,
+	SERVER_URL,
+	signInAsTestAccount,
+	signUpViaApi,
+	TEST_ACCOUNT,
+} from "./helpers";
 
 const DASHBOARD_URL = /\/dashboard$/;
 const LOGIN_URL = /\/login$/;
@@ -34,9 +40,7 @@ test.describe("protected pages", () => {
 	test("AC2: signed-in users are sent from /login to /dashboard", async ({
 		page,
 	}) => {
-		expect((await signUpViaApi(page.request, randomUsername())).ok()).toBe(
-			true
-		);
+		expect((await signInAsTestAccount(page.request)).ok()).toBe(true);
 		await page.goto("/login");
 		await expect(page).toHaveURL(DASHBOARD_URL);
 	});
@@ -55,11 +59,12 @@ test.describe("user menu", () => {
 	test("AC3: shows the username and signs out back to /login", async ({
 		page,
 	}) => {
-		const username = randomUsername("Menu");
-		expect((await signUpViaApi(page.request, username)).ok()).toBe(true);
+		expect((await signInAsTestAccount(page.request)).ok()).toBe(true);
 		await page.goto("/dashboard");
 
-		await page.getByRole("button", { name: username }).click();
+		await page
+			.getByRole("button", { exact: true, name: TEST_ACCOUNT.username })
+			.click();
 		await page.getByRole("menuitem", { name: "退出登录" }).click();
 		await expect(page).toHaveURL(LOGIN_URL);
 
@@ -85,7 +90,7 @@ test.describe("protected API", () => {
 		const body = await anonymous.json();
 		expect(body.error.data.code).toBe("UNAUTHORIZED");
 
-		expect((await signUpViaApi(request, randomUsername())).ok()).toBe(true);
+		expect((await signInAsTestAccount(request)).ok()).toBe(true);
 		const signedIn = await request.get(`${SERVER_URL}/trpc/privateData`);
 		expect(signedIn.status()).toBe(HTTP_OK);
 	});
