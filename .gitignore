@@ -60,3 +60,7 @@ temp
 # sl workflow
 specs/**/.sl-state.json
 .sl-worktrees/
+
+# Playwright
+test-results/
+playwright-report/

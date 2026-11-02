@@ -11,7 +11,7 @@
 | 移动端 | Expo SDK 58 + Expo Router、React Native 0.88、HeroUI Native、Uniwind（RN 上的 Tailwind v4）、Reanimated |
 | 后端 | Hono（Node runtime，`@hono/node-server`），开发用 `tsx watch`，构建用 `tsdown` |
 | API | tRPC v11 + TanStack React Query（`@trpc/tanstack-react-query`） |
-| 鉴权 | Better Auth（邮箱密码 + `@better-auth/expo` 插件），Prisma adapter |
+| 鉴权 | Better Auth（用户名 + 密码：`emailAndPassword` + `username` 插件；`@better-auth/expo` 插件），Prisma adapter |
 | 数据库 | PostgreSQL + Prisma 7（`prisma-client` 生成器，`@prisma/adapter-pg` 驱动适配器，多文件 schema） |
 | 表单 / 校验 | TanStack Form、Zod v4 |
 | 环境变量 | Varlock（`.env.schema` 声明 + 类型生成，产物为各包的 `src/env.ts`） |
@@ -70,6 +70,7 @@ sl-ai-admin/
 - **源码直连**：内部包通过 `package.json` 的 `exports` 直接指向 `src/*.ts`，无需构建；导入形如 `@sl-ai-admin/api/routers/index`、`@sl-ai-admin/ui/components/button`。
 - **端到端类型安全**：web / native 只以 `import type { AppRouter }` 引用后端路由类型，再通过 HTTP（`httpBatchLink` → `${SERVER_URL}/trpc`）调用。新增接口：在 `packages/api/src/routers/` 加 procedure 并挂到 `appRouter`，需要登录的用 `protectedProcedure`（`ctx.session` 非空）。
 - **鉴权流程**：Better Auth 挂在 server 的 `/api/auth/*`。Web 用跨域 Cookie（`credentials: "include"`，cookie `sameSite=none; secure`）；Native 用 Expo 插件把 session 存在 SecureStore，请求 tRPC 时通过 `authClient.getCookie()` 手动设置 `Cookie` 头。`trustedOrigins` 包含 `CORS_ORIGIN`、`sl-ai-admin://`、`exp://`、`http://localhost:8081`。
+- **账号是用户名制（无邮箱）**：注册调用 `authClient.signUp.email({ username, password, name: username, email: toPlaceholderEmail(username) })`；服务端 `hooks.before` 会强制把 email / name 改写为由用户名派生的占位邮箱 `<小写用户名>@users.sl-ai-admin.local`。登录用 `authClient.signIn.username`，`/sign-in/email` 已禁用。用户名规则、密码规则、中文提示语、错误码映射统一放在 `packages/auth/src/credentials.ts`（只依赖 zod，Web / Native / server 共用，导入 `@sl-ai-admin/auth/credentials`），不要在各端各写一份。显示用户名用 `displayUsername`（原始大小写），`username` 是小写规范化后的值。
 - **数据库**：schema 拆分在 `packages/db/prisma/schema/*.prisma`。`auth.prisma` 由 `pnpm auth:generate` 生成，不要手改；业务模型放新的 `.prisma` 文件。改 schema 后执行 `pnpm db:generate`，再 `pnpm db:push`（原型）或 `pnpm db:migrate`（迁移）。
 - **环境变量**：每个 app 有 `.env.schema`（类型、是否敏感、是否必填），`packages/db` 通过 `@import` 复用 server 的 `DATABASE_URL`。`pnpm install` 时 postinstall 会执行 `varlock codegen` 生成 `env.ts`；新增变量后需同步更新 `.env.schema`、`turbo.json` 的 `globalEnv`，并运行 `pnpm env:generate`。
   - server：`NODE_ENV`、`BETTER_AUTH_SECRET`（≥32 位）、`BETTER_AUTH_URL`、`CORS_ORIGIN`、`DATABASE_URL`
@@ -88,6 +89,8 @@ sl-ai-admin/
 | `pnpm auth:generate` | 根据 Better Auth 配置重新生成 `auth.prisma` |
 | `pnpm env:generate` | 重新生成各包的 varlock 类型 `env.ts` |
 | `pnpm check` / `pnpm fix` | Ultracite 检查 / 自动修复 |
+| `pnpm test` | 单元测试（Vitest，turbo 跑各包的 `test` 脚本；目前在 `packages/auth`，用例放 `src/**/*.test.ts`） |
+| `pnpm test:e2e` | Web 端到端测试（Playwright，用例在 `apps/web/e2e/`，`webServer` 会自动起 server :3000 和 web :3001，需本地 PostgreSQL 在运行） |
 
 ---
 
@@ -217,3 +220,16 @@ Biome will catch most mechanical issues automatically. Focus your attention on:
 ---
 
 Most formatting and common issues are automatically fixed by Biome. Run `pnpm exec ultracite fix` before committing to ensure compliance.
+
+---
+
+## 经验沉淀
+
+> 由 sl 工作流在开发中自动维护。
+
+- [2026-11-02][环境·数据库] 本机 PostgreSQL 17 用 Homebrew 安装、`brew services start postgresql@17` 常驻，账号密码与 `apps/server/.env` 的 `DATABASE_URL` 一致（role `postgres`）→ 测试 / 开发前确认 `pg_isready -h localhost` 通过
+- [2026-11-02][后端·数据库] 新克隆或 `auth.prisma` 变更后不先 `pnpm db:generate`，server 启动报 `ERR_MODULE_NOT_FOUND .../prisma/generated/client` → 先生成再起服务
+- [2026-11-02][数据库] `pnpm db:migrate` / `db:push` 是 turbo 交互任务，在非 TTY 环境（AI agent、CI）报 “Cannot run interactive task” → 改用 `pnpm -F @sl-ai-admin/db exec prisma migrate dev --name <名字>`
+- [2026-11-02][代码规范] 全量 `pnpm check` 有大量脚手架遗留错误，不能当提交闸门 → 只检查改动文件：`(git diff --name-only; git ls-files --others --exclude-standard) | grep -E '\.(ts|tsx|json)$' | xargs pnpm exec ultracite check`（zsh 不会拆分未加引号的变量，必须用 xargs）
+- [2026-11-02][代码规范] Biome formatter 配置为 tab 缩进，而脚手架代码是 2 空格；改动任何旧文件都会被整文件重排缩进 → diff 看着大属正常，review 时用 `git diff -w`
+- [2026-11-02][网页·E2E] 用例里直接请求 `http://localhost:3000/api/auth/*` 要带 `Origin: http://localhost:3001` 头；每个用例用随机用户名（`apps/web/e2e/helpers.ts` 的 `randomUsername`），不依赖清库；断言等待超时设为 15s，因为 `next dev` 首次编译路由较慢

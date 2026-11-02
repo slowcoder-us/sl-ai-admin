@@ -156,3 +156,10 @@ sequenceDiagram
 ## 待确认问题
 
 - 无。
+
+## 实现偏差
+
+- E2E 辅助函数：原计划 02 再抽 `apps/web/e2e/helpers.ts` → 01 直接建好 → 01 的用例已经需要注册 / 填表辅助函数。
+- `biome.json`：新增 `overrides`，对 `apps/web/**` 关闭 `performance/noJsxPropsBind` → 原因：Web 已开启 React Compiler（`next.config.ts` 的 `reactCompiler: true`），自动记忆化回调，逐个包 `useCallback` 是冗余样板；现有代码已有 24 处同类违规。
+- 数据库迁移：`pnpm db:migrate` 走 turbo 交互任务，在非 TTY 环境报错 → 改用 `pnpm -F @sl-ai-admin/db exec prisma migrate dev --name init_username_auth`。
+- `packages/auth/src/index.ts`：`createAuthMiddleware` 需要 async 回调才能推断出可选的 context 返回值，加了一条 `biome-ignore lint/suspicious/useAwait` 并注明原因。
