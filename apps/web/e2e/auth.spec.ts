@@ -74,6 +74,76 @@ test.describe("sign up", () => {
 		expect(user.name).toBe(username);
 	});
 
+	test("AC1: the server rejects sign-up without a username", async ({
+		request,
+	}) => {
+		const response = await request.post(
+			`${SERVER_URL}/api/auth/sign-up/email`,
+			{
+				data: {
+					email: `${randomUsername()}@example.com`,
+					name: "x",
+					password: TEST_PASSWORD,
+				},
+				headers: { Origin: WEB_ORIGIN },
+			}
+		);
+		expect(response.status()).toBe(400);
+	});
+
+	test("AC1: displayUsername always comes from the username", async ({
+		request,
+	}) => {
+		const username = randomUsername("Disp");
+		const response = await request.post(
+			`${SERVER_URL}/api/auth/sign-up/email`,
+			{
+				data: {
+					displayUsername: "SomeoneElse",
+					email: "x@example.com",
+					name: "x",
+					password: TEST_PASSWORD,
+					username,
+				},
+				headers: { Origin: WEB_ORIGIN },
+			}
+		);
+		expect(response.ok()).toBe(true);
+		const { user } = await response.json();
+		expect(user.displayUsername).toBe(username);
+	});
+
+	test("AC1: identity fields cannot be changed after sign-up", async ({
+		request,
+	}) => {
+		const username = randomUsername();
+		expect((await signUpViaApi(request, username)).ok()).toBe(true);
+
+		const attempts = [
+			{ username: randomUsername() },
+			{ displayUsername: "Admin" },
+			{ name: "Admin" },
+		];
+		const responses = await Promise.all(
+			attempts.map((data) =>
+				request.post(`${SERVER_URL}/api/auth/update-user`, {
+					data,
+					headers: { Origin: WEB_ORIGIN },
+				})
+			)
+		);
+		for (const response of responses) {
+			expect(response.status()).toBe(400);
+		}
+
+		const session = await (
+			await request.get(`${SERVER_URL}/api/auth/get-session`)
+		).json();
+		expect(session.user.username).toBe(username);
+		expect(session.user.displayUsername).toBe(username);
+		expect(session.user.name).toBe(username);
+	});
+
 	test("AC4: shows field errors under each input without calling the API", async ({
 		page,
 	}) => {
