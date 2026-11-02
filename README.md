@@ -15,7 +15,7 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **Node.js** - Runtime environment
 - **Prisma** - TypeScript-first ORM
 - **PostgreSQL** - Database engine
-- **Authentication** - Better-Auth
+- **Authentication** - Better-Auth (username + password, no email; see `packages/auth/src/credentials.ts`)
 - **Turborepo** - Optimized monorepo build system
 - **Biome** - Linting and formatting
 
@@ -40,11 +40,13 @@ This project uses PostgreSQL with Prisma.
 1. Make sure you have a PostgreSQL database set up.
 2. Update your `apps/server/.env` file with your PostgreSQL connection details.
 
-3. Apply the schema to your database:
+3. Apply the migrations to your database:
 
 ```bash
-pnpm run db:push
+pnpm -F @sl-ai-admin/db exec prisma migrate deploy
 ```
+
+When you change the schema, create a new migration with `pnpm run db:migrate` (or, without an interactive terminal, `pnpm -F @sl-ai-admin/db exec prisma migrate dev --name <name>`).
 
 Then, run the development server:
 
@@ -124,6 +126,8 @@ sl-ai-admin/
 - `pnpm run db:migrate`: Run database migrations
 - `pnpm run db:studio`: Open database studio UI
 - `pnpm run check`: Run Biome formatting and linting
+- `pnpm test`: Run unit tests (Vitest)
+- `pnpm test:e2e`: Run Web end-to-end tests (Playwright; starts the server and web app automatically, needs PostgreSQL running). Install the browser once with `pnpm -F web exec playwright install chromium`
 
 ## Better Auth Schema Generation
 
