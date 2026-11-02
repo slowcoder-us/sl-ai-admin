@@ -53,12 +53,12 @@
 
 ## 验收标准
 
-- [ ] AC1（R1）：未登录直接打开 `/dashboard`，最终停在 `/login`。
-- [ ] AC2（R2）：登录后打开 `/login`，最终停在 `/dashboard`。
-- [ ] AC3（R3）：登录后右上角显示用户名；点「退出登录」后停在 `/login`，再访问 `/dashboard` 被拦回 `/login`。
-- [ ] AC4（R3）：未登录时右上角显示「登录」按钮，点击进入 `/login`。
-- [ ] AC5（R4）：以 `Alice_01` 登录后，`/dashboard` 显示「欢迎，Alice_01」。
-- [ ] AC6（R5）：不带 cookie 请求 `GET /trpc/privateData`，HTTP 状态码 401，错误 code 为 `UNAUTHORIZED`；带登录 cookie 请求返回 200。
+- [x] AC1（R1）：未登录直接打开 `/dashboard`，最终停在 `/login`。
+- [x] AC2（R2）：登录后打开 `/login`，最终停在 `/dashboard`。
+- [x] AC3（R3）：登录后右上角显示用户名；点「退出登录」后停在 `/login`，再访问 `/dashboard` 被拦回 `/login`。
+- [x] AC4（R3）：未登录时右上角显示「登录」按钮，点击进入 `/login`。
+- [x] AC5（R4）：以 `Alice_01` 登录后，`/dashboard` 显示「欢迎，Alice_01」。
+- [x] AC6（R5）：不带 cookie 请求 `GET /trpc/privateData`，HTTP 状态码 401，错误 code 为 `UNAUTHORIZED`；带登录 cookie 请求返回 200。
 
 ## 不在范围内
 

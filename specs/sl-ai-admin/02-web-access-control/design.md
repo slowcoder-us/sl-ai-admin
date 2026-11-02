@@ -100,3 +100,10 @@ sequenceDiagram
 ## 待确认问题
 
 - 无。
+
+## 实现偏差
+
+- E2E 辅助函数：原计划本 feature 抽出 `apps/web/e2e/helpers.ts` → 01 已建好，本 feature 直接复用，`auth.spec.ts` 无需改动。
+- 未登录时的「登录」入口：原写法 `<Link><Button/></Link>`（按钮嵌在链接里）→ 改为 `<Link className={buttonVariants({ variant: "outline" })}>` → 原因：base-ui `Button` 用 `render={<Link/>}` 时会强制加 `role="button"`，读屏和 E2E 都把它当按钮而不是链接。
+- `dashboard.tsx`：去掉未使用的 `session` 属性。
+- 额外补充一个 E2E 用例：会话 cookie 存在但无效时，`/dashboard` 仍跳回 `/login`（验证 Proxy 放行后页面层的判断）。
