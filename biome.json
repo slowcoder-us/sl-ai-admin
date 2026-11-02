@@ -43,7 +43,7 @@
         "useExhaustiveDependencies": "info"
       },
       "nursery": {
-        "useTailwindSortedClasses": {
+        "useSortedClasses": {
           "level": "warn",
           "fix": "safe"
         }
