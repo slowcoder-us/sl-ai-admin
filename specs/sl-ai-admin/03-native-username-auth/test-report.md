@@ -73,3 +73,29 @@ Codex 评审 0 条、未改代码（工作区只多了两个评审记录文件�
 ### 失败与修复
 
 - 无测试失败，`fixRounds` = 0。
+
+## 回归测试 · W8 整体评审 final-r2 之后 · 2026-11-03 05:20
+
+Codex 整体评审（final-r2）采纳 1 条：`apps/native/app/sign-in.tsx` 改为 `Container isScrollable={false}` 内包 `react-native-keyboard-controller` 的 `KeyboardAwareScrollView`（`bottomOffset` 24），让登录 / 注册表单随键盘弹出滚动。本次回归覆盖静态检查、全部单元测试、全部 Web E2E，并重新打包移动端。
+
+| 类别 | 命令 | 结果 | 说明 |
+|------|------|------|------|
+| lint | `pnpm exec ultracite check apps/native/app/sign-in.tsx` | 通过 | 本次改动文件 0 报错 |
+| lint | `pnpm exec ultracite check <55c7126..工作区 改动的 12 个 ts/tsx/json 文件>` | 通过 | 本期累计改动 0 报错 |
+| 类型（App） | `pnpm -F native check-types` | 通过 | 退出码 0 |
+| 类型（全量） | `pnpm check-types --force` | 通过 | 7/7，未用缓存 |
+| 构建（Web/Server） | `pnpm build --force` | 通过 | 3/3，未用缓存 |
+| 构建（App） | `pnpm -F native exec expo export --platform ios --output-dir dist` | 通过 | 删掉旧 dist 后重新导出；`ios/entry-*.hbc` 中能找到 `KeyboardAwareScrollView`、`usernameClient`、`INVALID_USERNAME_OR_PASSWORD` |
+| 单元 | `pnpm test --force` | 通过 | Vitest 30 个用例 |
+| E2E（Web 回归） | `pnpm test:e2e` | 通过 | 20 个用例（13.3s）；Playwright 复用了 3000 端口上已在运行的 server（`reuseExistingServer: true`，连本地开发库），web 由 Playwright 自行启动 |
+| E2E（App） | — | 未运行 | 移动端没有 Detox / Maestro，按第 1 期 W2 决定由用户在模拟器手动验收 |
+
+### 验收标准覆盖
+
+- AC9：类型检查 + `expo export` 通过。
+- AC3 / AC4 / AC5 / AC7 的接口部分在批次测试中已通过，本次未改服务端和 `packages/*`。
+- AC1–AC8 的界面部分，以及新增的“键盘弹出时输入框和提交按钮不被遮挡”一项（manual-checklist.md），仍为「未验证」，待用户在模拟器手动验收。
+
+### 失败与修复
+
+- 无测试失败，`fixRounds` = 0。
