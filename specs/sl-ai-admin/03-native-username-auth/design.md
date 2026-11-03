@@ -118,3 +118,15 @@ sequenceDiagram
 ## 待确认问题
 
 - 无。
+
+## 实现偏差
+
+- 根布局加载态：原设计 `if (isPending) return <Spinner />` → 实际只在**首次**会话加载完成前显示 Spinner（`hasLoadedSession` 状态），之后不再卸载导航 → 原因：Better Auth 在会话为空时每次重新拉取（登录 / 注册成功后、App 回到前台）都会把 `isPending` 设回 `true`，按原设计会在提交中卸载登录表单、丢失输入。
+- 根布局去掉 `unstable_settings.anchor = "(drawer)"` → 原因：未登录时 `(drawer)` 被 `Stack.Protected` 排除，再把它作为锚点压到历史栈底部会和守卫跳转互相干扰；`modal` 只从 Tabs 页头进入，不需要锚点。
+- 表单网络异常：原设计只在 `onError` 里提示 → 实际在 `signIn.username` / `signUp.email` 外再包一层 `try/catch`，toast `AUTH_MESSAGES.signInFailed` / `signUpFailed` → 原因：服务器不可达时 better-fetch 直接抛异常，不会调用 `onError`，否则 R4「登录失败，请稍后重试」不会出现。
+- 退出登录：`authClient.signOut()` 失败时忽略错误，照常 `queryClient.clear()` → 原因：Expo 插件在发请求**之前**就清空 SecureStore 会话并把 session 置空，本地已退出；服务端会话到期自然失效。
+- `getErrorMessage`：原设计保留在 `components/sign-in.tsx` → 实际移到 `apps/native/lib/form-error.ts`，登录 / 注册两个表单共用（原来两个文件各有一份）。
+- `UserMenu` 同时放到 Tabs 页头 → 原因：`(tabs)` 屏自己覆盖了 `headerRight`（「+」打开 Modal），不加的话 Tabs 页没有退出入口。
+- `biome.json`：`noJsxPropsBind` 的关闭范围从 `apps/web/**` 扩到 `apps/native/**` → 原因：同 01 的理由，Native 也开了 React Compiler（`app.json` 的 `experiments.reactCompiler`）。
+- `lib/auth-client.ts`：`import * as SecureStore` 改为具名导入并组装 `storage` 对象 → 原因：Ultracite `noNamespaceImport`。
+- 首页的状态卡片文字（系统状态、在线 / 离线、连接状态）和抽屉「首页」改成中文 → 原因：非功能需求「界面文字使用中文」。

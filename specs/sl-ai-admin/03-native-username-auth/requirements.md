@@ -74,7 +74,7 @@ PRD 要求 Web 和移动端都支持账号体系。现有 Expo 应用把邮箱�
 - [ ] AC6（R5）：未登录时通过深链接 `sl-ai-admin://two` 打开，仍停在登录页。
 - [ ] AC7（R6）：点右上角「退出登录」后回到登录页；杀掉 App 重新打开仍是登录页。
 - [ ] AC8（R7）：提交中按钮禁用并显示加载指示。
-- [ ] AC9：`pnpm -F native check-types` 通过，`expo export` 打包 iOS 成功（证明共享模块能被 Metro 解析）。
+- [x] AC9：`pnpm -F native check-types` 通过，`expo export` 打包 iOS 成功（证明共享模块能被 Metro 解析）。
 
 ## 不在范围内
 

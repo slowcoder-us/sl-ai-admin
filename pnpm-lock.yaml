@@ -327,6 +327,9 @@ importers:
       '@sl-ai-admin/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@sl-ai-admin/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@tanstack/react-form':
         specifier: 'catalog:'
         version: 1.33.5(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
