@@ -58,6 +58,12 @@ Open [http://localhost:3001](http://localhost:3001) in your browser to see the w
 From `apps/native`, run the `ios` script for iOS or the `android` script for Android to build and launch the app. See [Expo development builds](https://docs.expo.dev/develop/development-builds/introduction/) for device setup.
 The API is running at [http://localhost:3000](http://localhost:3000).
 
+### Mobile app
+
+- The app talks to the API at `EXPO_PUBLIC_SERVER_URL` in `apps/native/.env`. `http://localhost:3000` works on the iOS simulator; on the Android emulator use `http://10.0.2.2:3000` and restart Metro.
+- Every screen except sign-in requires a session (`Stack.Protected` in `apps/native/app/_layout.tsx`). Web and mobile share the same accounts: sign up or sign in with username + password; sign out from the user menu in the top-right corner.
+- The mobile app has no automated UI tests. After changing it, run `pnpm -F native check-types` and `pnpm -F native exec expo export --platform ios --output-dir dist` (the output folder is git-ignored) to make sure it still type-checks and bundles. Manual simulator steps are in `specs/sl-ai-admin/03-native-username-auth/manual-checklist.md`.
+
 ## UI Customization
 
 React web apps in this stack share shadcn/ui primitives through `packages/ui`.

@@ -93,6 +93,7 @@ sl-ai-admin/
 | `pnpm check` / `pnpm fix` | Ultracite 检查 / 自动修复 |
 | `pnpm test` | 单元测试（Vitest，turbo 跑各包的 `test` 脚本；目前在 `packages/auth`，用例放 `src/**/*.test.ts`） |
 | `pnpm test:e2e` | Web 端到端测试（Playwright，用例在 `apps/web/e2e/`，`webServer` 会自动起 server :3000 和 web :3001，需本地 PostgreSQL 在运行） |
+| `pnpm -F native check-types` / `pnpm -F native exec expo export --platform ios --output-dir dist` | 移动端类型检查 / 打包检查（移动端没有 UI 自动化测试，改动后用这两条确认；`dist/` 已 gitignore；界面行为按 `specs/sl-ai-admin/03-native-username-auth/manual-checklist.md` 在模拟器手动验收） |
 
 ---
 
@@ -241,4 +242,4 @@ Most formatting and common issues are automatically fixed by Biome. Run `pnpm ex
 - [2026-11-03][移动端·网页·鉴权] 服务器不可达时 better-fetch 直接 throw，不会调用 `onError` → `authClient.signIn` / `signUp` 外层要包 `try/catch`，在 catch 里 toast「登录失败，请稍后重试」，否则没有提示且有未处理的 Promise rejection
 - [2026-11-03][移动端·鉴权] `@better-auth/expo` 的 `signOut` 在发请求前就清空 SecureStore 并把会话置空 → 离线也能本地退出，`signOut` 抛错可以忽略，之后再 `queryClient.clear()`
 - [2026-11-03][代码规范] Biome 类型推断误报：`useRef<InputRef>(null)` 后 `ref.current?.focus()` 被 `noUnnecessaryConditions` 判为多余 → 写成 `useRef<InputRef | null>(null)`；react-query 的 `isLoading` 也会被误判恒为 `false` → 先把状态算成枚举再查表
-- [2026-11-03][移动端·构建] Expo SDK 58 + pnpm monorepo：`apps/native` 加 `@sl-ai-admin/auth: workspace:*` 后，Metro 不用改 `metro.config.js` 就能解析 `@sl-ai-admin/auth/credentials` → 移动端没有 UI 自动化，改动后用 `pnpm -F native check-types` + `pnpm -F native exec expo export --platform ios --output-dir dist`（`dist/` 已 gitignore）确认能打包
+- [2026-11-03][移动端·构建] Expo SDK 58 + pnpm monorepo：移动端引用内部包只需在 `apps/native/package.json` 加 `workspace:*` 依赖（如 `@sl-ai-admin/auth`），Metro 不用改 `metro.config.js` 就能解析 `@sl-ai-admin/auth/credentials` → 加完用「常用命令」里的 `expo export` 确认能打包
