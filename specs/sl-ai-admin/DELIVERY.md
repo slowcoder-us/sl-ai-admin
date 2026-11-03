@@ -66,6 +66,29 @@ cp01 采纳的问题：注册可不带用户名、注册后可改用户名 / 显
 
 ## 安全与依赖
 
+### 第 2 期（2026-11-03，03 移动端）
+
+**安全审查**（`security-review` skill 依赖 `origin/HEAD`，本仓库的 origin 没有这个引用，调用失败；改为按清单逐项检查 `55c7126..9ee6d53` 的改动）：
+- **接口 / 越权**：本期没有改 `apps/server`、`apps/web`、`packages/*`，没有新增接口。移动端只调用已有的 Better Auth 接口和 tRPC 的 `healthCheck` / `privateData`，鉴权仍在服务端完成。
+- **路由保护**：根布局用 `Stack.Protected` 守卫。没有会话时只能进入 `sign-in`，`(drawer)`、`(tabs)` 和 `modal` 都进不去，用深链接也绕不过去。
+- **输入校验 / 注入 / XSS**：用户名和密码的规则统一来自 `@sl-ai-admin/auth/credentials`（zod），服务端 `hooks.before` 仍会强制改写 email 和 name。RN 的 `<Text>` 不解析 HTML，也没有 WebView、`eval` 或拼接 SQL。
+- **会话与密钥**：session 保存在 `expo-secure-store` 中，`storage` 只传了 get / set 四个函数。退出登录时调用 `queryClient.clear()`，避免下一个登录的账号看到上一个账号的缓存数据。代码里没有 `console.*`，也没有把 token 写进日志。
+- **错误提示**：登录失败按状态码映射成同一句中文提示，不区分“用户名不存在”和“密码错误”，不暴露服务端原始报错。
+- **打包产物**：检查了 `expo export` 生成的 iOS hbc。
+  - 里面没有 Prisma、`pg`、`DATABASE_URL` 或服务端 `createAuth`；
+  - 本机 `apps/server/.env` 里的 `BETTER_AUTH_SECRET` 值不在产物中，只出现了 `@better-auth/core` 环境变量读取代码里的这个变量名；
+  - `@sl-ai-admin/auth/credentials` 只依赖 zod，没有把服务端代码打进 App。
+- **不适用**：文件上传、对外请求（SSRF）。
+- 结论：**没有发现新的安全问题**。已有的风险（用户名可被枚举、限流只在生产环境开启）见「遗留问题」。
+
+**依赖审计**（`pnpm audit --prod --registry=https://registry.npmjs.org`）：仍然是第 1 期那 4 个，高 1、中 2、低 1，没有严重级别。全部由 Expo / shadcn 工具链带入：
+- zod < 4.6.6 来自 `@expo/cli`。我们自己的代码用的 zod 是 4.6.7，App 运行时也用这个版本。
+- minimatch、glob、deepmerge 来自 `@expo/config` 等配置工具。
+
+本期 `pnpm-lock.yaml` 只多了 `apps/native → @sl-ai-admin/auth` 这一条 workspace 链接，**没有新增或升级任何外部依赖**，所以不需要处理，也不需要你确认升级。
+
+### 第 1 期（2026-11-02，Web）
+
 **安全审查**（`security-review` skill 需要远程分支，本仓库无 remote，改为按清单手动检查）：
 - 没有新增 tRPC 接口；`privateData` 未登录返回 401 已有测试固定
 - 身份字段：注册必须带用户名，email / name / displayUsername 由服务端从用户名派生，注册后不可修改；邮箱登录接口已禁用
