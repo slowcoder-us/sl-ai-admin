@@ -50,3 +50,26 @@
 ### 失败与修复
 
 - 无测试失败，`fixRounds` = 0。
+
+## 回归测试 · 批次 1（第 2 期，Codex 评审 cp03-03-native-username-auth 之后）· 2026-11-03 05:06
+
+Codex 评审 0 条、未改代码（工作区只多了两个评审记录文件），本次回归确认提交 6500e20 的状态。
+
+| 类别 | 命令 | 结果 | 说明 |
+|------|------|------|------|
+| lint | `pnpm exec ultracite check <55c7126..6500e20 改动的 12 个 ts/tsx/json 文件>` | 通过 | 0 报错 |
+| 类型（App） | `pnpm -F native check-types` | 通过 | 退出码 0 |
+| 类型（全量） | `pnpm check-types` | 通过 | 7/7（turbo 缓存命中，输入未变） |
+| 构建（Web/Server） | `pnpm build` | 通过 | 3/3（turbo 缓存命中，输入未变） |
+| 构建（App） | `pnpm -F native exec expo export --platform ios --output-dir dist` | 通过 | 删掉旧 dist 后重新导出；`ios/entry-*.hbc` 中能找到 `usernameClient`、`INVALID_USERNAME_OR_PASSWORD` |
+| 单元 | `pnpm test` | 通过 | Vitest 30 个用例 |
+| E2E（Web 回归） | `pnpm test:e2e` | 未运行 | 批次测试后没有改过任何代码，批次测试时 20 个用例已通过；本 feature 不涉及 Web |
+| E2E（App） | — | 未运行 | 移动端没有 Detox / Maestro，按第 1 期 W2 决定由用户在模拟器手动验收 |
+
+### 验收标准覆盖
+
+与批次测试一致：AC9 通过；AC3 / AC4 / AC5 / AC7 的接口部分在批次测试中已通过；AC1–AC8 的界面部分仍为「未验证」，待用户按 manual-checklist.md 在模拟器验收。
+
+### 失败与修复
+
+- 无测试失败，`fixRounds` = 0。
