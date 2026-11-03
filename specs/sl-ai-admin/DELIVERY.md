@@ -1,8 +1,10 @@
 # sl-ai-admin 登录注册 交付报告
 
-分支：`sl/sl-ai-admin`（`a9c3ad2..HEAD`，共 8 个提交，未推送）
-日期：2026-11-02
-需求：`docs/登录需求.md`（本期按用户决定只做 Web，移动端暂缓）
+分支：`sl/sl-ai-admin`（`a9c3ad2..HEAD`，两期共 17 个提交，未推送）
+- 第 2 期（移动端）：`55c7126..HEAD`，7 个提交，日期 2026-11-03
+- 第 1 期（Web）：`a9c3ad2..55c7126`，10 个提交，日期 2026-11-02
+
+需求：`docs/登录需求.md`。第 1 期按用户决定只做后端 + Web，移动端暂缓；第 2 期按用户要求补做移动端（03）。需求文档两期之间没有变化，没有重新拆分。
 
 ## 完成情况
 
@@ -10,9 +12,15 @@
 |---------|------|----------|------|
 | 01-username-account 用户名注册 / 登录（后端 + Web） | 11/11 | AC1–AC10 通过 | `d097b96` 功能、`2239acb` 评审修复 |
 | 02-web-access-control 访问控制与退出 | 7/7 | AC1–AC6 通过 | `bc883fc` 功能、`3d7afa4` 评审记录 |
-| 03-native-username-auth 移动端 | 0/7 | — | **暂缓**（用户 2026-11-02 决定本期只做 Web） |
+| 03-native-username-auth 移动端用户名登录注册（第 2 期） | 7/7 | AC9 通过；**AC1–AC8 待你在模拟器手动验收** | `6500e20` 功能、`1687d21` 评审记录、`9ee6d53` 整体评审修复 |
 
-其他提交：`8ae2a6f` 修 Biome 配置、`1be9da6` specs 拆分、`a254f09` 文档同步、本报告。
+03 的 AC1–AC8 是界面行为，项目没有移动端 UI 自动化（Detox / Maestro），按第 1 期 W2 的决定由你在模拟器上手动验收，清单见 [manual-checklist.md](./03-native-username-auth/manual-checklist.md)。对应的底层行为已经用模拟 Expo 客户端的接口检查覆盖（注册、重复用户名、错误密码、登录、退出，见 [03 测试记录](./03-native-username-auth/test-report.md)），但界面本身还没有人看过。
+
+其他提交：
+- 第 2 期：`1ecbd7e` 全量测试记录、`3306329` 安全审查与依赖审计记录、`0c17969` 文档同步、本报告。
+- 第 1 期：`8ae2a6f` 修 Biome 配置、`1be9da6` specs 拆分、`a254f09` 文档同步与整体评审记录、`d32ac4a` 第 1 期交付报告、`f061d0a` E2E 自动清理临时用户、`55c7126` 补记拆分记录。
+
+第 2 期改动的代码只在 `apps/native`，另外改了 `biome.json`（对 `apps/native/**` 关闭 `noJsxPropsBind`）和 `pnpm-lock.yaml`（只多了一条 workspace 链接）。没有改 server、web 或 `packages/*`。
 
 ## 测试
 
@@ -60,7 +68,13 @@
 |------|-----------|------|--------|----------|----------|
 | cp01（01 功能） | 3 | 3（+ Claude 自查 1） | 0 | 0 | [cp01-…-decision.md](./reviews/cp01-01-username-account-decision.md) |
 | cp02（02 功能） | 0 | 0 | 0 | 0 | [cp02-…-decision.md](./reviews/cp02-02-web-access-control-decision.md) |
-| final（整个分支） | 0 | 0 | 0 | 0 | [final-decision.md](./reviews/final-decision.md) |
+| final（第 1 期整个分支，`a9c3ad2..3d7afa4`） | 0 | 0 | 0 | 0 | [final-decision.md](./reviews/final-decision.md) |
+| cp03（03 功能，第 2 期） | 0 | 0 | 0 | 0 | [cp03-…-decision.md](./reviews/cp03-03-native-username-auth-decision.md)（记录提交 `1687d21`） |
+| final-r2（第 2 期整个分支，`55c7126..1ecbd7e`） | 1 | 1 | 0 | 0 | [final-r2-decision.md](./reviews/final-r2-decision.md)（修复提交 `9ee6d53`） |
+
+第 2 期的整体评审编号用 `final-r2`，这样不会覆盖第 1 期的 `final` 结论。
+
+final-r2 采纳的问题（P2）：登录 / 注册页不随键盘调整，iOS 上键盘弹出后，下方输入框和提交按钮可能被挡住。修法：`apps/native/app/sign-in.tsx` 改用 `react-native-keyboard-controller` 的 `KeyboardAwareScrollView`（依赖已有，不新增），共享的 `Container` 没有改。键盘行为没法自动测试，已在手动验收清单里加了一条。final-r2 的 Claude 跨 feature 复核结论：校验规则只从 `@sl-ai-admin/auth/credentials` 引入，没有另写一份；移动端和 Web 的接口调用方式一致；本期没有改共享代码，Web 的 20 个 E2E 用例全部通过，01 / 02 没有回归。
 
 cp01 采纳的问题：注册可不带用户名、注册后可改用户名 / 显示名 / name、注册时可伪造 displayUsername。均已修复并补了能复现问题的 E2E 用例（回退修复后这些用例会失败）。
 
@@ -108,6 +122,24 @@ cp01 采纳的问题：注册可不带用户名、注册后可改用户名 / 显
 
 ## 新增的经验沉淀
 
+### 第 2 期（2026-11-03）
+
+AGENTS.md 正文：
+- 目录结构补充了 native 的新文件：`sign-in` 页、`user-menu`、`lib/display-name.ts`、`lib/form-error.ts`、`auth-client.ts` 含 `usernameClient`。
+- 「鉴权流程」补充了移动端的登录保护：根布局用 `Stack.Protected guard={isSignedIn}`，新增需要登录的页面放进 `(drawer)` 或同一个分组。
+- 「常用命令」加了一行：移动端类型检查 `pnpm -F native check-types` 和打包检查 `expo export --platform ios`，界面行为按手动验收清单验收。
+
+「经验沉淀」小节新增 5 条：
+- `useSession()` 的 `isPending` 每次重新拉取都会变回 `true`，根布局只能在首次加载时用它显示 Spinner，否则提交中的登录表单会被卸载
+- 服务器不可达时 better-fetch 直接 throw、不调 `onError`，`signIn` / `signUp` 要包 `try/catch`
+- `@better-auth/expo` 的 `signOut` 先清 SecureStore，离线也能本地退出，之后再 `queryClient.clear()`
+- Biome 类型推断误报：`useRef<T | null>` 的写法，以及 react-query `isLoading` 被误判
+- Expo SDK 58 + pnpm monorepo：只加 `workspace:*` 依赖，Metro 不用改配置就能解析内部包
+
+另外，已有的「环境·数据库」条目补了一句：Homebrew 4.3 在 macOS 27 上会崩溃，先 `brew update`。
+
+### 第 1 期（2026-11-02）
+
 AGENTS.md 正文新增：账号是用户名制的约定（注册 / 登录写法、身份字段不可改、共享校验模块）、`pnpm test` / `pnpm test:e2e` 命令。「经验沉淀」小节新增 8 条：
 - 本机 PostgreSQL 17（Homebrew）的启动与账号
 - 先 `pnpm db:generate` 再起 server
@@ -120,13 +152,25 @@ AGENTS.md 正文新增：账号是用户名制的约定（注册 / 登录写法�
 
 ## 遗留问题
 
-1. **⚠️ 移动端现有的登录已失效**：`apps/native` 仍是邮箱登录 / 注册，而本期禁用了 `/sign-in/email` 并要求注册必须带用户名。恢复 03 后即可解决（03 的 specs 已写好，只依赖 01，可直接开工）。在那之前不要发布移动端。
-2. 全量 `pnpm check` 有 451 个脚手架遗留 lint 错误（多为排序类，可自动修复），本期未处理，提交闸门改为只查改动文件。建议单独开一次「全量 `pnpm fix`」的清理提交。
-3. 部署时 web 与 server 若不在同一域名，`proxy.ts` 读不到会话 cookie（cookie 在 server 域名下）。页面层 `getServerSession()` 仍会正确拦截，但 Proxy 的提前跳转会失效；跨域部署方案不在本期范围。
-4. Better Auth 的接口限流默认只在生产环境（`NODE_ENV=production`）开启，开发环境下登录接口可被暴力尝试。
-5. 「用户名已被注册」提示（PRD 要求）和默认开启的 `/is-username-available` 接口都能用来探测用户名是否存在。如需防枚举，可在 `disabledPaths` 加 `/is-username-available`。
-6. ~~本地开发库里留有 E2E 产生的测试用户~~ → 已解决（交付后追加）：已清理历史测试用户；E2E 现在跑完自动删除临时用户，只保留共享账号 `test` / `test1234`。
-7. 上面依赖审计列出的 4 个既有漏洞，需要随 Expo / shadcn 升级处理。
+**需要你做的事**
+1. **⚠️ 03 的 AC1–AC8 还没有验收**：按 [manual-checklist.md](./03-native-username-auth/manual-checklist.md) 在模拟器上逐条操作，包括 final-r2 修复后新增的键盘一项，把结果填进清单的「结果」列。验收通过后再把 `03-native-username-auth/requirements.md` 的 AC1–AC8 打勾。在此之前不要发布移动端。
+2. 本机是 Xcode 15.3，只装了 iOS 17.4 模拟器运行时，可能达不到 Expo SDK 58 / RN 0.88 的构建要求。iOS 开发版构建失败时，先升级 Xcode，或者改用 Android 模拟器（Android SDK 已装，`expo export --platform android` 已验证能打包）。
+3. 3000 端口上还有一个本次工作流早先启动的 `pnpm dev:server`（PID 44632，监听进程 PID 44709，连的是默认开发库）。工作流里没能停掉它，请你自己关掉：`kill 44632 44709`。如果你正打算按下面的步骤启动后端，也可以直接复用它。
+
+**超出本期范围的问题**
+
+4. Web 的登录 / 注册表单（`apps/web/src/components/sign-in-form.tsx`、`sign-up-form.tsx`）没有处理 better-fetch 的网络异常：服务器不可达时不会提示「登录失败，请稍后重试」，还会产生未处理的 Promise rejection。移动端 03 已经用 try/catch 处理了，Web 可以照着改。
+5. `getDisplayName` 在移动端和 Web 各有一份，逻辑相同（`apps/native/lib/display-name.ts`、`apps/web/src/lib/display-name.ts`）。这是 03 design.md 有意的做法，但以后显示名规则要改时两端都得改。可以考虑移到 `packages/auth/credentials`。
+6. 全量 `pnpm check` 有 451 个脚手架遗留的 lint 错误（多为排序类，可自动修复），两期都没有处理，提交闸门只检查改动文件。建议单独做一次「全量 `pnpm fix`」的清理提交。
+7. 部署时如果 web 和 server 不在同一域名，`proxy.ts` 读不到会话 cookie（cookie 在 server 域名下）。页面里的 `getServerSession()` 仍会正确拦截，但 Proxy 的提前跳转会失效。跨域部署方案不在本期范围。
+8. Better Auth 的接口限流默认只在生产环境（`NODE_ENV=production`）开启，开发环境下登录接口可以被暴力尝试。
+9. 「用户名已被注册」提示（PRD 要求）和默认开启的 `/is-username-available` 接口都能用来探测用户名是否存在。如需防枚举，可以在 `disabledPaths` 加上 `/is-username-available`。
+10. 依赖审计列出的 4 个既有漏洞（zod < 4.6.6 高、minimatch 中、glob 中、deepmerge 低），都来自 Expo / shadcn 工具链，需要随它们升级处理。
+11. 本机 Node 是 v26.13.0，不在 Prisma 声明支持的版本里（20.19+ / 22.12+ / 24.0+），`pnpm install` 时 preinstall 会警告。实际生成、迁移、运行都正常，CI / 部署环境建议用 Node 24 LTS。
+
+**已解决**
+- ~~移动端现有的登录已失效~~（第 1 期遗留第 1 条）：03 已经把移动端改成用户名登录注册，并加了登录保护。
+- ~~本地开发库里留有 E2E 产生的测试用户~~（第 1 期遗留第 6 条）：E2E 跑完会自动删除临时用户，只保留共享账号 `test` / `test1234`。
 
 ## 如何验证
 
@@ -136,14 +180,37 @@ pnpm install
 pnpm db:generate
 pnpm -F @sl-ai-admin/db exec prisma migrate deploy
 pnpm dev:server                            # 终端 1，:3000
-pnpm dev:web                               # 终端 2，:3001
+pnpm dev:web                               # 终端 2，:3001（验证 Web 时）
 ```
 
-关键路径（可用共享测试账号 `test` / `test1234` 登录，也可自己注册）：
+可以用共享测试账号 `test` / `test1234` 登录，也可以自己注册。Web 和移动端共用账号。
+
+### Web 关键路径
 1. 打开 http://localhost:3001/dashboard → 自动跳到 `/login`
 2. 点「还没有账号？去注册」→ 用户名 `Alice_01`、密码 8 位以上 → 注册后进入后台，显示「欢迎，Alice_01」
 3. 右上角点用户名 → 「退出登录」→ 回到登录页；再访问 `/dashboard` 仍被拦回
 4. 用 `alice_01`（大小写不同）+ 错误密码登录 → 提示「用户名或密码错误」；密码正确则登录成功
 5. 已登录时打开 `/login` → 直接进入 `/dashboard`
 
-自动化：`pnpm test`（单元）、`pnpm test:e2e`（端到端，需数据库在运行；首次先 `pnpm -F web exec playwright install chromium`）。
+### 移动端关键路径（第 2 期，需要你手动验收）
+
+先设置 `apps/native/.env` 的 `EXPO_PUBLIC_SERVER_URL`：iOS 模拟器用 `http://localhost:3000`，Android 模拟器用 `http://10.0.2.2:3000`（改完重启 Metro）。然后：
+
+```bash
+pnpm -F native ios          # 首次构建开发版（Android 用 pnpm -F native android）
+pnpm dev:native             # 之后只需启动 Metro
+```
+
+1. 未登录冷启动 → 只看到登录表单，可以切到注册再切回
+2. 注册表单输入不合法的值 → 三个输入框下方显示和 Web 相同的错误，不发请求
+3. 用新用户名注册 → 进入首页，显示「欢迎，<用户名>」；在注册表单点「确认密码」时，键盘不挡住输入框和「注册」按钮
+4. 错误密码、不存在的用户名登录 → 都提示「用户名或密码错误」；用已存在用户名的不同大小写注册 → 提示「用户名已被注册」
+5. 未登录时打开深链接 `sl-ai-admin://two`（iOS：`xcrun simctl openurl booted sl-ai-admin://two`）→ 仍停在登录页
+6. 右上角「退出登录」→ 回到登录页；杀掉 App 再打开仍是登录页
+
+完整步骤和预期结果见 [manual-checklist.md](./03-native-username-auth/manual-checklist.md)。
+
+### 自动化
+- `pnpm test`：单元测试
+- `pnpm test:e2e`：Web 端到端测试，需要数据库在运行；首次先执行 `pnpm -F web exec playwright install chromium`
+- `pnpm -F native check-types`、`pnpm -F native exec expo export --platform ios --output-dir dist`：移动端类型检查和打包检查
