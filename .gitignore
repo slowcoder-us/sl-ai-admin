@@ -56,3 +56,12 @@ coverage
 .cache
 tmp
 temp
+
+# sl workflow
+specs/**/.sl-state.json
+.sl-worktrees/
+specs/**/.sl-inbox.md
+
+# Playwright
+test-results/
+playwright-report/

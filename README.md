@@ -15,7 +15,7 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **Node.js** - Runtime environment
 - **Prisma** - TypeScript-first ORM
 - **PostgreSQL** - Database engine
-- **Authentication** - Better-Auth
+- **Authentication** - Better-Auth (username + password, no email; see `packages/auth/src/credentials.ts`)
 - **Turborepo** - Optimized monorepo build system
 - **Biome** - Linting and formatting
 
@@ -40,11 +40,13 @@ This project uses PostgreSQL with Prisma.
 1. Make sure you have a PostgreSQL database set up.
 2. Update your `apps/server/.env` file with your PostgreSQL connection details.
 
-3. Apply the schema to your database:
+3. Apply the migrations to your database:
 
 ```bash
-pnpm run db:push
+pnpm -F @sl-ai-admin/db exec prisma migrate deploy
 ```
+
+When you change the schema, create a new migration with `pnpm run db:migrate` (or, without an interactive terminal, `pnpm -F @sl-ai-admin/db exec prisma migrate dev --name <name>`).
 
 Then, run the development server:
 
@@ -55,6 +57,12 @@ pnpm run dev
 Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
 From `apps/native`, run the `ios` script for iOS or the `android` script for Android to build and launch the app. See [Expo development builds](https://docs.expo.dev/develop/development-builds/introduction/) for device setup.
 The API is running at [http://localhost:3000](http://localhost:3000).
+
+### Mobile app
+
+- The app talks to the API at `EXPO_PUBLIC_SERVER_URL` in `apps/native/.env`. `http://localhost:3000` works on the iOS simulator; on the Android emulator use `http://10.0.2.2:3000` and restart Metro.
+- Every screen except sign-in requires a session (`Stack.Protected` in `apps/native/app/_layout.tsx`). Web and mobile share the same accounts: sign up or sign in with username + password; sign out from the user menu in the top-right corner.
+- The mobile app has no automated UI tests. After changing it, run `pnpm -F native check-types` and `pnpm -F native exec expo export --platform ios --output-dir dist` (the output folder is git-ignored) to make sure it still type-checks and bundles. Manual simulator steps are in `specs/sl-ai-admin/03-native-username-auth/manual-checklist.md`.
 
 ## UI Customization
 
@@ -124,6 +132,8 @@ sl-ai-admin/
 - `pnpm run db:migrate`: Run database migrations
 - `pnpm run db:studio`: Open database studio UI
 - `pnpm run check`: Run Biome formatting and linting
+- `pnpm test`: Run unit tests (Vitest)
+- `pnpm test:e2e`: Run Web end-to-end tests (Playwright; starts the server and web app automatically, needs PostgreSQL running). Install the browser once with `pnpm -F web exec playwright install chromium`
 
 ## Better Auth Schema Generation
 
