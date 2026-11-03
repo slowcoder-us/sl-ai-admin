@@ -16,6 +16,29 @@
 
 ## 测试
 
+### 第 2 期（2026-11-03，03 移动端）全量测试
+
+干净环境：删除全部 `node_modules`、`.turbo`、`.next`、`apps/native/dist`、server `dist` 和 Prisma 生成的客户端，然后执行 `pnpm install --frozen-lockfile` 和 `pnpm db:generate`。E2E 在新建的空库 `sl_delivery_check` 上运行，测完已删除。Node 版本是 v26.13.0；安装时 Prisma preinstall 提示“只支持 20.19+ / 22.12+ / 24.0+”，但生成、迁移、运行都正常。
+
+| 类别 | 命令 | 结果 |
+|------|------|------|
+| lint | 第 2 期改动的 12 个 ts/tsx/json 文件：`ultracite check` | 0 错误 |
+| lint | 两期累计改动的 40 个 ts/tsx/json 文件：`ultracite check` | 0 错误；2 条 info，和第 1 期相同，是 fumadocs `biome.json` 的配置弃用提示 |
+| 类型 | `pnpm check-types --force` | 7/7 通过，0 缓存（包含 native） |
+| 类型 | `pnpm -F native check-types` | 通过 |
+| 构建 | `pnpm build --force` | 3/3 通过，0 缓存，识别到 Proxy |
+| 移动端打包 | `pnpm -F native exec expo export --platform ios --output-dir dist` | 通过；ios hbc 中能找到 `usernameClient`、`INVALID_USERNAME_OR_PASSWORD` |
+| 移动端打包 | `expo export --platform android`（输出到临时目录） | 通过（额外检查，方便改用 Android 模拟器验收） |
+| 单元 | `pnpm test --force` | 30 个用例通过 |
+| 迁移 | 空库 `prisma migrate deploy` | 通过（1 个迁移） |
+| E2E（Web 回归） | `pnpm test:e2e`（`DATABASE_URL` 指向空库） | 20 个用例通过。空库测完只剩 global-setup 创建的共享账号 `test`，临时用户已被 teardown 清理，说明这次确实用了新库 |
+
+移动端没有自动化 UI 测试（没有 Detox / Maestro）。03 的 AC1–AC8 界面部分还**没有验证**，需要用户按 [manual-checklist.md](./03-native-username-auth/manual-checklist.md) 在模拟器上手动验收。逐条证据见 [03 测试记录](./03-native-username-auth/test-report.md)。
+
+本次全量测试没有发现问题，也没有修复提交。
+
+### 第 1 期（2026-11-02，Web）全量测试
+
 交付前在干净环境全量跑一遍（`pnpm install --frozen-lockfile`、清空 `.next` / `.turbo` 缓存、`--force` 重建、E2E 跑在新建的空库 `sl_delivery_check` 上，测完删除）：
 
 | 类别 | 命令 | 结果 |
