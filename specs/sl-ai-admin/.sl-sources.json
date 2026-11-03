@@ -1,0 +1,21 @@
+{
+  "rounds": [
+    {
+      "round": 1,
+      "date": "2026-11-02",
+      "files": {
+        "docs/登录需求.md": "5c7cf91c47c3414f3e3039546704fce5dfb4506c"
+      },
+      "features": {
+        "added": [
+          "01-username-account",
+          "02-web-access-control",
+          "03-native-username-auth"
+        ],
+        "modified": [],
+        "changed": []
+      },
+      "note": "2026-11-03 补记（第 1 轮拆分时尚无拆分记录）"
+    }
+  ]
+}
