@@ -65,3 +65,4 @@ specs/**/.sl-inbox.md
 # Playwright
 test-results/
 playwright-report/
+recordings/

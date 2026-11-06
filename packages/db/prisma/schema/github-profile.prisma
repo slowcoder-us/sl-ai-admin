@@ -1,0 +1,15 @@
+model GithubProfile {
+  id        String   @id @default(cuid())
+  ownerId   String
+  githubId  String
+  username  String
+  avatarUrl String?
+  name      String?
+  bio       String?
+  location  String?
+  createdAt DateTime @default(now())
+
+  @@unique([ownerId, githubId])
+  @@index([ownerId, createdAt])
+  @@map("github_profile")
+}

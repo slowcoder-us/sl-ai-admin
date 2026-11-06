@@ -33,6 +33,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "1.20.12",
     "@playwright/test": "catalog:",
     "@sl-ai-admin/config": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
@@ -41,6 +42,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "catalog:",
     "tailwindcss": "catalog:",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "wrangler": "4.158.0"
   }
 }
