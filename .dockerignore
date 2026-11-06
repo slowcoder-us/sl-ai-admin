@@ -1,0 +1,17 @@
+.git
+.agents
+.claude
+.codex
+**/node_modules
+**/.env*
+!apps/server/.env.schema
+!packages/db/.env.schema
+**/dist
+**/.next
+**/.open-next
+**/.wrangler
+**/.turbo
+**/cdk.out
+**/prisma/generated
+**/*.tsbuildinfo
+recordings

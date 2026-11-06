@@ -1,0 +1,104 @@
+name: Verify and deploy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: sl_ai_admin
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sl_ai_admin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      BETTER_AUTH_SECRET: local-ci-only-signing-secret-for-test-accounts
+      BETTER_AUTH_URL: http://localhost:3000
+      CORS_ORIGIN: http://localhost:3001
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/sl_ai_admin
+      NEXT_PUBLIC_SERVER_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm -F @sl-ai-admin/db db:migrate:deploy
+      - run: pnpm -F web exec next typegen
+      - run: pnpm -F web... -F server... -F @sl-ai-admin/infra check-types
+      - run: pnpm -F @sl-ai-admin/infra cdk synth --strict --quiet
+      - run: pnpm test
+      - run: pnpm -F web exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CF_WEB_ORIGIN: ${{ vars.CF_WEB_ORIGIN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the Worker
+        run: |
+          DATABASE_URL=postgresql://build@localhost/build pnpm db:generate
+          pnpm -F web exec opennextjs-cloudflare build
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      - name: Deploy AWS backend and migrate Aurora
+        id: aws
+        run: |
+          set -euo pipefail
+          pnpm -F @sl-ai-admin/infra cdk deploy SlAiAdminBackend \
+            --parameters "WebOrigin=$CF_WEB_ORIGIN" \
+            --require-approval never --outputs-file "$RUNNER_TEMP/aws-outputs.json"
+          api_origin="$(jq -er '.SlAiAdminBackend.ApiOrigin' "$RUNNER_TEMP/aws-outputs.json")"
+          curl --fail --silent --show-error --retry 5 "$api_origin/"
+          printf 'api_origin=%s\n' "$api_origin" >> "$GITHUB_OUTPUT"
+      - name: Publish the Cloudflare Worker
+        env:
+          AWS_API_ORIGIN: ${{ steps.aws.outputs.api_origin }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm -F web exec opennextjs-cloudflare deploy -- --var "AWS_API_ORIGIN:$AWS_API_ORIGIN"
+      - name: Check the public frontend and its AWS proxy
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-all-errors "$CF_WEB_ORIGIN/login" --output /dev/null
+          curl --fail --silent --show-error --retry 5 --retry-all-errors "$CF_WEB_ORIGIN/trpc/healthCheck" \
+            | jq -e '.result.data == "OK"'
+          printf 'Frontend %s\n' "$CF_WEB_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
