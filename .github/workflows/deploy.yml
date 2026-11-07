@@ -93,7 +93,7 @@ jobs:
       - name: Publish the Cloudflare Worker
         env:
           AWS_API_ORIGIN: ${{ steps.aws.outputs.api_origin }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF }}
         run: pnpm -F web exec opennextjs-cloudflare deploy -- --var "AWS_API_ORIGIN:$AWS_API_ORIGIN"
       - name: Check the public frontend and its AWS proxy
         run: |
