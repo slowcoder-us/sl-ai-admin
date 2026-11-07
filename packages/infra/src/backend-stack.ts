@@ -277,7 +277,6 @@ export class BackendStack extends Stack {
 				retention: RetentionDays.ONE_MONTH,
 			}),
 			memorySize: 1024,
-			reservedConcurrentExecutions: 10,
 			timeout: Duration.seconds(15),
 		});
 		apiFunction.node.addDependency(schema);
