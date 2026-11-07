@@ -3,8 +3,9 @@ Description: Allow the GitHub production environment to use the CDK bootstrap ro
 Parameters:
   Repository:
     Type: String
-    AllowedPattern: "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
-    Default: slowcoder-us/sl-ai-admin
+    Description: GitHub repository in the immutable owner@owner_id/repo@repo_id subject format
+    AllowedPattern: "[A-Za-z0-9_.-]+@[0-9]+/[A-Za-z0-9_.-]+@[0-9]+"
+    Default: slowcoder-us@346395988/sl-ai-admin@1442748271
   BootstrapQualifier:
     Type: String
     Default: hnb659fds
