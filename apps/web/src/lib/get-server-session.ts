@@ -1,6 +1,5 @@
+import { createAuthClient } from "better-auth/client";
 import { headers } from "next/headers";
-
-import { authClient } from "./auth-client";
 
 /**
  * Validates the session against the auth server by forwarding the incoming
@@ -9,8 +8,14 @@ import { authClient } from "./auth-client";
  */
 export async function getServerSession() {
 	try {
-		const { data } = await authClient.getSession({
-			fetchOptions: { headers: await headers() },
+		const baseURL =
+			process.env.AWS_API_ORIGIN ?? process.env.NEXT_PUBLIC_SERVER_URL;
+		const cookie = (await headers()).get("cookie");
+		if (!(baseURL && cookie)) {
+			return null;
+		}
+		const { data } = await createAuthClient({ baseURL }).getSession({
+			fetchOptions: { cache: "no-store", headers: { cookie } },
 		});
 		return data;
 	} catch {

@@ -26,6 +26,8 @@
       "!bts.jsonc",
       "!**/.expo",
       "!**/.wrangler",
+      "!!**/.open-next",
+      "!!**/cdk.out",
       "!**/.alchemy",
       "!**/.svelte-kit",
       "!**/wrangler.jsonc",

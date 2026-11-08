@@ -1,11 +1,13 @@
+import path from "node:path";
 import { varlockNextConfigPlugin } from "@varlock/nextjs-integration/plugin";
-
-const withVarlock = varlockNextConfigPlugin();
 import type { NextConfig } from "next";
 
+const withVarlock = varlockNextConfigPlugin();
+
 const nextConfig: NextConfig = {
-  typedRoutes: true,
-  reactCompiler: true,
+	outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
+	reactCompiler: true,
+	typedRoutes: true,
 };
 
 export default withVarlock(nextConfig);

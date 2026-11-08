@@ -44,11 +44,17 @@
     }
   },
   "globalEnv": [
+    "APP_DB_PASSWORD",
+    "AWS_API_ORIGIN",
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",
     "CI",
     "CORS_ORIGIN",
     "DATABASE_URL",
+    "DB_HOST",
+    "DB_NAME",
+    "DB_PASSWORD",
+    "DB_USER",
     "EXPO_PUBLIC_SERVER_URL",
     "NEXT_PUBLIC_SERVER_URL",
     "NODE_ENV",

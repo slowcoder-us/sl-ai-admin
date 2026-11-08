@@ -61,7 +61,9 @@ temp
 specs/**/.sl-state.json
 .sl-worktrees/
 specs/**/.sl-inbox.md
+docs/**/.*.sl-decoded.html
 
 # Playwright
 test-results/
 playwright-report/
+recordings/

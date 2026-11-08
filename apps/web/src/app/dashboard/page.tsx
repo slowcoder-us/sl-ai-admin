@@ -1,3 +1,5 @@
+import { buttonVariants } from "@sl-ai-admin/ui/components/button";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getDisplayName } from "@/lib/display-name";
@@ -17,6 +19,12 @@ export default async function DashboardPage() {
 			<h1 className="mb-4 font-bold text-2xl">后台首页</h1>
 			<p>欢迎，{getDisplayName(session.user)}</p>
 			<Dashboard />
+			<Link
+				className={buttonVariants({ variant: "outline" })}
+				href="/dashboard/github-users"
+			>
+				GitHub 用户管理
+			</Link>
 		</div>
 	);
 }
