@@ -81,12 +81,12 @@
 | 05 | [05-github-profile-save](./05-github-profile-save/) | 数据表、保存到数据库、已保存列表、防重复、账号隔离 | 04 | 6 | 5 |
 | 06 | [06-github-profile-edit-delete](./06-github-profile-edit-delete/) | 就地修改、二次确认删除、记录不存在的处理 | 05 | 6 | 5 |
 | 07 | [07-web-cloudflare-deploy](./07-web-cloudflare-deploy/) | **⏸ 暂缓（2026-11-07 用户决定本轮只做开发任务）** Web 发布到 Cloudflare Workers、同源转发、线上验收 | 04、05、06 | 4 | 5 |
-| 08 | [08-native-github-profiles](./08-native-github-profiles/) | 移动端搜索、保存、列表、修改、删除 | 03、04、05、06 | 8 | 8 |
+| 08 | [08-native-github-profiles](./08-native-github-profiles/) | **⏸ 暂缓（2026-11-07 用户决定先做 Web，App 暂时不做）** 移动端搜索、保存、列表、修改、删除 | 03、04、05、06 | 8 | 8 |
 
 ## 建议开发顺序
 
 1. **04 → 05 → 06**（共享规则和接口先完成，移动端依赖它们）
-2. **08**
+2. **08**（暂缓，本轮不开发）
 3. **07**（暂缓，本轮不开发；线上验收需要后端已部署）
 
 ## 需求追溯

@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+
 import type { APIRequestContext, Page } from "@playwright/test";
 import { toPlaceholderEmail } from "@sl-ai-admin/auth/credentials";
 
@@ -44,6 +46,40 @@ export function signUpViaApi(
 		},
 		headers: { Origin: WEB_ORIGIN },
 	});
+}
+
+export interface SeedProfile {
+	bio: string;
+	location: string;
+	name: string;
+	username: string;
+}
+
+function sqlText(value: string): string {
+	return `'${value.replaceAll("'", "''")}'`;
+}
+
+/**
+ * Inserts saved GitHub profiles straight into the database, so a test spends
+ * none of GitHub's anonymous quota. global-teardown removes them with the owner.
+ */
+export function insertGithubProfiles(
+	ownerUsername: string,
+	profiles: SeedProfile[]
+) {
+	const sql = profiles
+		.map(
+			({ bio, location, name, username }, index) => `
+INSERT INTO "github_profile" ("id", "ownerId", "githubId", "username", "name", "bio", "location")
+SELECT ${sqlText(crypto.randomUUID())}, id, ${sqlText(String(index + 1))}, ${sqlText(username)}, ${sqlText(name)}, ${sqlText(bio)}, ${sqlText(location)}
+FROM "user" WHERE username = ${sqlText(ownerUsername)};`
+		)
+		.join("\n");
+	execFileSync(
+		"pnpm",
+		["-F", "@sl-ai-admin/db", "exec", "prisma", "db", "execute", "--stdin"],
+		{ input: sql, stdio: ["pipe", "ignore", "inherit"] }
+	);
 }
 
 /** Signs `request` (or a page's `page.request`) in as the shared test account. */

@@ -1,7 +1,11 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
-import { GITHUB_PROFILE_MESSAGES } from "@sl-ai-admin/api/github-profile-rules";
+import {
+	GITHUB_PROFILE_LIMITS,
+	GITHUB_PROFILE_MESSAGES,
+} from "@sl-ai-admin/api/github-profile-rules";
 
 import {
+	insertGithubProfiles,
 	randomUsername,
 	SERVER_URL,
 	signUpViaApi,
@@ -75,6 +79,60 @@ async function save(page: Page, username: string) {
 	await search(page, username);
 	await saveButton(page).click();
 	await expect(saveButton(page)).toHaveCount(0);
+}
+
+const FIRST = {
+	bio: "First bio",
+	location: "First place",
+	name: "First Name",
+	username: "first-user",
+};
+const SECOND = {
+	bio: "Second bio",
+	location: "Second place",
+	name: "Second Name",
+	username: "second-user",
+};
+
+async function openWithProfiles(page: Page, profiles = [FIRST]) {
+	const owner = randomUsername();
+	expect((await signUpViaApi(page.request, owner)).ok()).toBe(true);
+	insertGithubProfiles(owner, profiles);
+	await page.goto("/dashboard/github-users");
+}
+
+function savedRow(page: Page, username: string) {
+	return savedCard(page)
+		.getByRole("listitem")
+		.filter({ has: page.getByRole("link", { name: `@${username}` }) });
+}
+
+function rowButton(page: Page, username: string, name: string) {
+	return savedRow(page, username).getByRole("button", { exact: true, name });
+}
+
+function editForm(page: Page, username: string) {
+	return page.getByRole("form", { name: `编辑 @${username}` });
+}
+
+async function fillEditForm(
+	page: Page,
+	username: string,
+	values: { bio: string; location: string; name: string }
+) {
+	const form = editForm(page, username);
+	await form.getByLabel("姓名").fill(values.name);
+	await form.getByLabel("简介").fill(values.bio);
+	await form.getByLabel("所在地").fill(values.location);
+}
+
+async function expectRowActions(
+	page: Page,
+	username: string,
+	state: "toBeDisabled" | "toBeEnabled"
+) {
+	await expect(rowButton(page, username, "编辑"))[state]();
+	await expect(rowButton(page, username, "删除"))[state]();
 }
 
 test.describe("access", () => {
@@ -337,5 +395,133 @@ test.describe("saved profiles", () => {
 		await page.waitForTimeout(TOAST_SETTLE_MS);
 		expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
 		expect(await page.getByText(LIST_ERROR).count()).toBe(1);
+	});
+});
+
+test.describe("edit and delete", () => {
+	test("AC1: the form is prefilled and only offers the three fields", async ({
+		page,
+	}) => {
+		await openWithProfiles(page);
+
+		await rowButton(page, FIRST.username, "编辑").click();
+
+		const form = editForm(page, FIRST.username);
+		await expect(form.getByLabel("姓名")).toHaveValue(FIRST.name);
+		await expect(form.getByLabel("简介")).toHaveValue(FIRST.bio);
+		await expect(form.getByLabel("简介")).toHaveAttribute(
+			"maxlength",
+			String(GITHUB_PROFILE_LIMITS.bio)
+		);
+		await expect(form.getByLabel("所在地")).toHaveValue(FIRST.location);
+		await expect(form.locator("input, textarea")).toHaveCount(3);
+	});
+
+	test("AC2: edits show in the list and survive a reload", async ({ page }) => {
+		await openWithProfiles(page);
+		const edited = { bio: "New bio", location: "New place", name: "New Name" };
+
+		await rowButton(page, FIRST.username, "编辑").click();
+		await fillEditForm(page, FIRST.username, edited);
+		await editForm(page, FIRST.username)
+			.getByRole("button", { exact: true, name: "保存修改" })
+			.click();
+
+		const details = [edited.name, edited.bio, edited.location];
+		const row = savedRow(page, FIRST.username);
+		await expect(row.locator("p")).toHaveText(details);
+
+		await page.reload();
+		await expect(row.locator("p")).toHaveText(details);
+	});
+
+	test("AC4: cleared fields are no longer shown", async ({ page }) => {
+		await openWithProfiles(page);
+
+		await rowButton(page, FIRST.username, "编辑").click();
+		await fillEditForm(page, FIRST.username, {
+			bio: "",
+			location: "",
+			name: "   ",
+		});
+		await editForm(page, FIRST.username)
+			.getByRole("button", { exact: true, name: "保存修改" })
+			.click();
+
+		const row = savedRow(page, FIRST.username);
+		await expect(rowButton(page, FIRST.username, "编辑")).toBeVisible();
+		await expect(row.locator("p")).toHaveCount(0);
+
+		await page.reload();
+		await expect(rowButton(page, FIRST.username, "编辑")).toBeVisible();
+		await expect(row.locator("p")).toHaveCount(0);
+	});
+
+	test("AC5: cancelling an edit saves nothing", async ({ page }) => {
+		await openWithProfiles(page);
+
+		await rowButton(page, FIRST.username, "编辑").click();
+		await fillEditForm(page, FIRST.username, {
+			bio: "Discarded",
+			location: "Discarded",
+			name: "Discarded",
+		});
+		await editForm(page, FIRST.username)
+			.getByRole("button", { exact: true, name: "取消" })
+			.click();
+
+		const details = [FIRST.name, FIRST.bio, FIRST.location];
+		const row = savedRow(page, FIRST.username);
+		await expect(row.locator("p")).toHaveText(details);
+
+		await page.reload();
+		await expect(row.locator("p")).toHaveText(details);
+	});
+
+	test("AC6: cancelling a delete keeps the record", async ({ page }) => {
+		await openWithProfiles(page);
+
+		await rowButton(page, FIRST.username, "删除").click();
+		await expect(savedRow(page, FIRST.username)).toContainText(
+			"删除这条记录？"
+		);
+		await rowButton(page, FIRST.username, "取消").click();
+
+		await expect(savedRow(page, FIRST.username)).not.toContainText(
+			"删除这条记录？"
+		);
+		await page.reload();
+		await expect(savedLinks(page)).toHaveText([`@${FIRST.username}`]);
+	});
+
+	test("AC7: a confirmed delete removes only that record", async ({ page }) => {
+		await openWithProfiles(page, [FIRST, SECOND]);
+		await expect(savedLinks(page)).toHaveCount(2);
+
+		await rowButton(page, FIRST.username, "删除").click();
+		await rowButton(page, FIRST.username, "确认删除").click();
+
+		await expect(savedLinks(page)).toHaveText([`@${SECOND.username}`]);
+		await page.reload();
+		await expect(savedLinks(page)).toHaveText([`@${SECOND.username}`]);
+	});
+
+	test("AC10: editing or confirming a delete locks the other records", async ({
+		page,
+	}) => {
+		await openWithProfiles(page, [FIRST, SECOND]);
+		await expectRowActions(page, SECOND.username, "toBeEnabled");
+
+		await rowButton(page, FIRST.username, "编辑").click();
+		await expectRowActions(page, SECOND.username, "toBeDisabled");
+		await editForm(page, FIRST.username)
+			.getByRole("button", { exact: true, name: "取消" })
+			.click();
+		await expectRowActions(page, SECOND.username, "toBeEnabled");
+
+		await rowButton(page, FIRST.username, "删除").click();
+		await expectRowActions(page, SECOND.username, "toBeDisabled");
+		await rowButton(page, FIRST.username, "取消").click();
+		await expectRowActions(page, SECOND.username, "toBeEnabled");
 	});
 });

@@ -247,4 +247,4 @@ Most formatting and common issues are automatically fixed by Biome. Run `pnpm ex
 - [2026-11-07][网页·E2E] Next 页面自带 `role=alert` 的 `__next-route-announcer__` → `getByRole("alert")` 要加 `.filter({ hasText })`，否则 strict mode 报错
 - [2026-11-07][网页·E2E] 断言「没有 toast」不能用会重试的 `toHaveCount(0)`：sonner toast 4 秒后消失，重试会等到它消失后误通过 → 等 1 秒后用 `expect(await locator.count()).toBe(0)`
 - [2026-11-07][网页·E2E] 用 `page.route` 模拟跨域 tRPC 请求时，`fulfill` 要带 `Access-Control-Allow-Origin: http://localhost:3001` 和 `Access-Control-Allow-Credentials: true`，响应体是批量格式的数组
-- [2026-11-07][网页·E2E] GitHub 用户相关用例依赖 GitHub 匿名额度（全量 `pnpm test:e2e` 约用 9 次），额度耗尽时这些用例会因限流失败，不是代码问题；`page.route` 只能模拟浏览器发起的 `githubProfiles.lookup`，`add` 由服务端请求 GitHub，模拟不了 → 跑 E2E 前查 `https://api.github.com/rate_limit`，不够就等 reset；新增用例除非要验证真实链路，否则都模拟 `lookup`
+- [2026-11-07][网页·E2E] GitHub 用户相关用例依赖 GitHub 匿名额度（全量 `pnpm test:e2e` 约用 9 次），额度耗尽时这些用例会因限流失败，不是代码问题；`page.route` 只能模拟浏览器发起的 `githubProfiles.lookup`，`add` 由服务端请求 GitHub，模拟不了 → 跑 E2E 前查 `https://api.github.com/rate_limit`，不够就等 reset；新增用例除非要验证真实链路，否则都模拟 `lookup`；只需要“已保存的记录”时用 `apps/web/e2e/helpers.ts` 的 `insertGithubProfiles` 直接写库，不消耗额度

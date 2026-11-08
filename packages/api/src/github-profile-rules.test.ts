@@ -1,9 +1,40 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	GITHUB_PROFILE_LIMITS,
 	GITHUB_PROFILE_MESSAGES,
+	githubProfileFieldsSchema,
 	githubUsernameSchema,
 } from "./github-profile-rules";
+
+const validFields = { bio: "bio", location: "place", name: "name" };
+
+describe("githubProfileFieldsSchema", () => {
+	it.each(Object.entries(GITHUB_PROFILE_LIMITS))(
+		"accepts %s at its limit of %i and rejects one more",
+		(field, limit) => {
+			const withLength = (length: number) => ({
+				...validFields,
+				[field]: "a".repeat(length),
+			});
+
+			expect(
+				githubProfileFieldsSchema.safeParse(withLength(limit)).success
+			).toBe(true);
+			expect(
+				githubProfileFieldsSchema.safeParse(withLength(limit + 1)).success
+			).toBe(false);
+		}
+	);
+
+	it("ignores surrounding spaces when measuring and returning a value", () => {
+		const padded = ` ${"a".repeat(GITHUB_PROFILE_LIMITS.bio)} `;
+
+		expect(
+			githubProfileFieldsSchema.parse({ ...validFields, bio: padded }).bio
+		).toBe("a".repeat(GITHUB_PROFILE_LIMITS.bio));
+	});
+});
 
 describe("githubUsernameSchema", () => {
 	it.each(["octocat", "Octo-Cat", "a", "a1-b2-c3", "a".repeat(39)])(

@@ -1,6 +1,9 @@
 "use client";
 
-import { githubUsernameSchema } from "@sl-ai-admin/api/github-profile-rules";
+import {
+	GITHUB_PROFILE_LIMITS,
+	githubUsernameSchema,
+} from "@sl-ai-admin/api/github-profile-rules";
 import { Button } from "@sl-ai-admin/ui/components/button";
 import {
 	Card,
@@ -99,20 +102,24 @@ function EditProfile({
 				<Input
 					autoComplete="off"
 					defaultValue={profile.name ?? ""}
-					maxLength={255}
+					maxLength={GITHUB_PROFILE_LIMITS.name}
 					name="name"
 				/>
 			</Label>
 			<Label>
 				简介
-				<Textarea defaultValue={profile.bio ?? ""} maxLength={500} name="bio" />
+				<Textarea
+					defaultValue={profile.bio ?? ""}
+					maxLength={GITHUB_PROFILE_LIMITS.bio}
+					name="bio"
+				/>
 			</Label>
 			<Label>
 				所在地
 				<Input
 					autoComplete="off"
 					defaultValue={profile.location ?? ""}
-					maxLength={255}
+					maxLength={GITHUB_PROFILE_LIMITS.location}
 					name="location"
 				/>
 			</Label>

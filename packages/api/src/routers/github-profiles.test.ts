@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Context } from "../context";
+import { GITHUB_PROFILE_LIMITS } from "../github-profile-rules";
 import { appRouter } from "./index";
 
 const GITHUB_TIMEOUT_MS = 5000;
 const HTTP_OK = 200;
 
+const RECORD_NOT_FOUND = "找不到该记录";
 const RATE_LIMITED = "GitHub 查询暂时受限，请稍后重试";
 const UNAVAILABLE = "暂时无法读取 GitHub 资料，请稍后重试";
 
@@ -41,6 +43,39 @@ function createDb() {
 	);
 	const findMany = vi.fn(() => Promise.resolve([{ id: "profile-1" }]));
 	return { githubProfile: { createMany, findMany } };
+}
+
+/** Applies the same id + ownerId match as the real update and delete. */
+function createRecordDb() {
+	const record = { bio: "old", id: "profile-1", location: "old", name: "old" };
+	const records = new Map([[record.id, { ...record, ownerId: "user-a" }]]);
+	const matches = (where: { id: string; ownerId: string }) =>
+		records.get(where.id)?.ownerId === where.ownerId ? 1 : 0;
+	const updateMany = vi.fn(
+		({
+			data,
+			where,
+		}: {
+			data: object;
+			where: { id: string; ownerId: string };
+		}) => {
+			const count = matches(where);
+			if (count > 0) {
+				Object.assign(records.get(where.id) ?? {}, data);
+			}
+			return Promise.resolve({ count });
+		}
+	);
+	const deleteMany = vi.fn(
+		({ where }: { where: { id: string; ownerId: string } }) => {
+			const count = matches(where);
+			if (count > 0) {
+				records.delete(where.id);
+			}
+			return Promise.resolve({ count });
+		}
+	);
+	return { githubProfile: { deleteMany, updateMany }, records };
 }
 
 function respondWith(body: unknown, status = HTTP_OK) {
@@ -269,5 +304,119 @@ describe("githubProfiles.list", () => {
 			code: "UNAUTHORIZED",
 		});
 		expect(db.githubProfile.findMany).not.toHaveBeenCalled();
+	});
+});
+
+describe("githubProfiles.update", () => {
+	const input = { bio: "b", id: "profile-1", location: "l", name: "n" };
+
+	it("updates the owner's record and trims the fields", async () => {
+		const db = createRecordDb();
+
+		await caller(true, db, "user-a").update({
+			...input,
+			bio: "  new bio  ",
+		});
+
+		expect(db.githubProfile.updateMany).toHaveBeenCalledWith({
+			data: { bio: "new bio", location: "l", name: "n" },
+			where: { id: "profile-1", ownerId: "user-a" },
+		});
+		expect(db.records.get("profile-1")?.bio).toBe("new bio");
+	});
+
+	it("stores empty and space-only fields as null", async () => {
+		const db = createRecordDb();
+
+		await caller(true, db, "user-a").update({
+			bio: "",
+			id: "profile-1",
+			location: "   ",
+			name: "",
+		});
+
+		expect(db.records.get("profile-1")).toMatchObject({
+			bio: null,
+			location: null,
+			name: null,
+		});
+	});
+
+	it("rejects a bio over the limit without writing", async () => {
+		const db = createRecordDb();
+
+		await expect(
+			caller(true, db, "user-a").update({
+				...input,
+				bio: "a".repeat(GITHUB_PROFILE_LIMITS.bio + 1),
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(db.githubProfile.updateMany).not.toHaveBeenCalled();
+		expect(db.records.get("profile-1")?.bio).toBe("old");
+	});
+
+	it("reports another account's record as not found and keeps it", async () => {
+		const db = createRecordDb();
+
+		await expect(
+			caller(true, db, "user-b").update(input)
+		).rejects.toMatchObject({ code: "NOT_FOUND", message: RECORD_NOT_FOUND });
+		expect(db.records.get("profile-1")?.bio).toBe("old");
+	});
+
+	it("reports a missing record as not found", async () => {
+		const db = createRecordDb();
+
+		await expect(
+			caller(true, db, "user-a").update({ ...input, id: "missing" })
+		).rejects.toMatchObject({ code: "NOT_FOUND", message: RECORD_NOT_FOUND });
+	});
+
+	it("rejects signed-out callers without writing", async () => {
+		const db = createRecordDb();
+
+		await expect(caller(false, db).update(input)).rejects.toMatchObject({
+			code: "UNAUTHORIZED",
+		});
+		expect(db.githubProfile.updateMany).not.toHaveBeenCalled();
+	});
+});
+
+describe("githubProfiles.remove", () => {
+	it("deletes only the current account's record", async () => {
+		const db = createRecordDb();
+
+		await caller(true, db, "user-a").remove("profile-1");
+
+		expect(db.githubProfile.deleteMany).toHaveBeenCalledWith({
+			where: { id: "profile-1", ownerId: "user-a" },
+		});
+		expect(db.records.has("profile-1")).toBe(false);
+	});
+
+	it("reports another account's record as not found and keeps it", async () => {
+		const db = createRecordDb();
+
+		await expect(
+			caller(true, db, "user-b").remove("profile-1")
+		).rejects.toMatchObject({ code: "NOT_FOUND", message: RECORD_NOT_FOUND });
+		expect(db.records.has("profile-1")).toBe(true);
+	});
+
+	it("reports a missing record as not found", async () => {
+		const db = createRecordDb();
+
+		await expect(
+			caller(true, db, "user-a").remove("missing")
+		).rejects.toMatchObject({ code: "NOT_FOUND", message: RECORD_NOT_FOUND });
+	});
+
+	it("rejects signed-out callers without deleting", async () => {
+		const db = createRecordDb();
+
+		await expect(caller(false, db).remove("profile-1")).rejects.toMatchObject({
+			code: "UNAUTHORIZED",
+		});
+		expect(db.githubProfile.deleteMany).not.toHaveBeenCalled();
 	});
 });

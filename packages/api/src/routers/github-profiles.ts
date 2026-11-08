@@ -1,7 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import { githubUsernameSchema } from "../github-profile-rules";
+import {
+	githubProfileFieldsSchema,
+	githubUsernameSchema,
+} from "../github-profile-rules";
 import { protectedProcedure, router } from "../index";
 
 const githubUser = z.object({
@@ -11,12 +14,6 @@ const githubUser = z.object({
 	location: z.string().nullable(),
 	login: githubUsernameSchema,
 	name: z.string().nullable(),
-});
-
-const profileFields = z.object({
-	bio: z.string().trim().max(500),
-	location: z.string().trim().max(255),
-	name: z.string().trim().max(255),
 });
 
 async function getGithubProfile(login: string) {
@@ -103,7 +100,7 @@ export const githubProfilesRouter = router({
 			}
 		}),
 	update: protectedProcedure
-		.input(profileFields.extend({ id: z.string().min(1) }))
+		.input(githubProfileFieldsSchema.extend({ id: z.string().min(1) }))
 		.mutation(async ({ ctx, input }) => {
 			const { bio, id, location, name } = input;
 			const result = await ctx.db.githubProfile.updateMany({
