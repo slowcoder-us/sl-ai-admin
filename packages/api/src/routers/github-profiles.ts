@@ -1,20 +1,15 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
+import { githubUsernameSchema } from "../github-profile-rules";
 import { protectedProcedure, router } from "../index";
-
-const username = z
-	.string()
-	.trim()
-	.max(39)
-	.regex(/^[a-z\d]+(?:-[a-z\d]+)*$/i, "请输入有效的 GitHub 用户名");
 
 const githubUser = z.object({
 	avatar_url: z.url().nullable(),
 	bio: z.string().nullable(),
 	id: z.int().positive(),
 	location: z.string().nullable(),
-	login: username,
+	login: githubUsernameSchema,
 	name: z.string().nullable(),
 });
 
@@ -76,16 +71,18 @@ async function getGithubProfile(login: string) {
 }
 
 export const githubProfilesRouter = router({
-	add: protectedProcedure.input(username).mutation(async ({ ctx, input }) => {
-		const profile = await getGithubProfile(input);
-		const result = await ctx.db.githubProfile.createMany({
-			data: { ...profile, ownerId: ctx.session.user.id },
-			skipDuplicates: true,
-		});
-		if (result.count === 0) {
-			throw new TRPCError({ code: "CONFLICT", message: "该用户已保存" });
-		}
-	}),
+	add: protectedProcedure
+		.input(githubUsernameSchema)
+		.mutation(async ({ ctx, input }) => {
+			const profile = await getGithubProfile(input);
+			const result = await ctx.db.githubProfile.createMany({
+				data: { ...profile, ownerId: ctx.session.user.id },
+				skipDuplicates: true,
+			});
+			if (result.count === 0) {
+				throw new TRPCError({ code: "CONFLICT", message: "该用户已保存" });
+			}
+		}),
 	list: protectedProcedure.query(({ ctx }) =>
 		ctx.db.githubProfile.findMany({
 			orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -93,7 +90,7 @@ export const githubProfilesRouter = router({
 		})
 	),
 	lookup: protectedProcedure
-		.input(username)
+		.input(githubUsernameSchema)
 		.query(({ input }) => getGithubProfile(input)),
 	remove: protectedProcedure
 		.input(z.string().min(1))

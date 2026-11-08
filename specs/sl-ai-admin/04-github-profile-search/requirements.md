@@ -64,15 +64,15 @@
 
 ## 验收标准
 
-- [ ] AC1（R1）：已登录用户打开 `/dashboard`，点击「GitHub 用户管理」，进入 `/dashboard/github-users`。
-- [ ] AC2（R2）：未登录访问 `/dashboard/github-users`，跳转到 `/login`。
-- [ ] AC3（R2）：未登录调用 `githubProfiles.lookup`，返回 401。
-- [ ] AC4（R3）：输入 `-abc`、`a--b` 或 40 位字符并提交，搜索区显示一次「请输入有效的 GitHub 用户名」，不出现 JSON 文本，也不发起查询。
-- [ ] AC5（R4）：输入 `octocat` 并搜索，显示头像、`@octocat`、姓名；点击用户名在新标签页打开 `https://github.com/octocat`。
-- [ ] AC6（R4）：GitHub 资料的姓名、简介、所在地为空时，对应项不显示。
-- [ ] AC7（R5）：GitHub 分别返回 404、403、429、500、超时、非法内容时，接口返回 R5 表中对应的提示。
-- [ ] AC8（R5）：页面显示查询错误时，搜索区内只出现一次提示，没有重复的 toast。
-- [ ] AC9（R6）：查询进行中显示「正在搜索…」且搜索按钮禁用。
+- [x] AC1（R1）：已登录用户打开 `/dashboard`，点击「GitHub 用户管理」，进入 `/dashboard/github-users`。
+- [x] AC2（R2）：未登录访问 `/dashboard/github-users`，跳转到 `/login`。
+- [x] AC3（R2）：未登录调用 `githubProfiles.lookup`，返回 401。
+- [x] AC4（R3）：输入 `-abc`、`a--b` 或 40 位字符并提交，搜索区显示一次「请输入有效的 GitHub 用户名」，不出现 JSON 文本，也不发起查询。
+- [x] AC5（R4）：输入 `octocat` 并搜索，显示头像、`@octocat`、姓名；点击用户名在新标签页打开 `https://github.com/octocat`。
+- [x] AC6（R4）：GitHub 资料的姓名、简介、所在地为空时，对应项不显示。
+- [x] AC7（R5）：GitHub 分别返回 404、403、429、500、超时、非法内容时，接口返回 R5 表中对应的提示。
+- [x] AC8（R5）：页面显示查询错误时，搜索区内只出现一次提示，没有重复的 toast。
+- [x] AC9（R6）：查询进行中显示「正在搜索…」且搜索按钮禁用。
 
 ## 不在范围内
 

@@ -127,3 +127,9 @@ sequenceDiagram
 ## 待确认问题
 
 无（2026-11-07 确认：`packages/api` 新增开发依赖 `vitest`，用 `catalog:`；页面位置见 requirements.md）
+
+## 实现偏差
+
+- 搜索输入框：原设计未提 `maxLength={39}` 和 `required` → 实际删除这两个属性 → 否则 40 位字符输入不进去（AC4 无法发生），空值会弹浏览器原生提示而不是 R3 的中文提示；两种情况现在都由 `githubUsernameSchema` 校验。
+- 格式错误显示：原设计只写设置 `formatError` 且不改 `search` → 实际在 `formatError` 存在时同时隐藏上一次查询的错误和资料 → 避免搜索区同时出现两条提示，或显示与当前输入无关的旧结果。
+- E2E 范围：测试策略只列了未登录跳转、首页入口、格式错误、搜索 `octocat` → 实际另用 `page.route` 模拟接口覆盖 AC3、AC6、AC8、AC9 → 不依赖真实 GitHub 响应，也不消耗匿名限额。
