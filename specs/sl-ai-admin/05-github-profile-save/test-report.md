@@ -36,3 +36,37 @@ GitHub 匿名额度：跑前剩 22，跑后剩 13，全量 E2E 用了 9 次。
 ### 失败与修复
 
 无失败，`fixRounds` 为 0。
+
+## 回归测试 · 第 2 轮批次 2 · 2026-11-07 23:50
+
+测试环境：主工作区，提交 edff135，同时包含未提交的部署改动（见状态文件 `workingTreeIgnore`）。未单独测试不含这些部署改动的代码。Codex 评审 0 条意见，评审后代码没有改动。
+
+| 类别 | 命令 | 结果 | 说明 |
+|------|------|------|------|
+| lint | `pnpm exec ultracite check <edff135 改动的 4 个代码文件>` | 通过 | 实际检查 4 个文件 |
+| 类型 | `pnpm check-types` | 通过 | 8 个任务全部命中 turbo 缓存（输入与批次测试相同） |
+| 类型 | `pnpm -F native check-types` | 通过 | 实际执行 |
+| 单元 | `pnpm test` | 通过 | 69 个用例（api 39、auth 30），2 个任务全部命中 turbo 缓存 |
+| 构建 | `pnpm exec turbo run build --filter=server --filter=fumadocs --filter='!web'` | 通过 | 2 个任务全部命中 turbo 缓存 |
+| 构建 | `pnpm -F web build` | 通过 | 实际执行，在主工作区的临时克隆里（克隆时删除 `.next`），构建后已删除克隆。PID 49124 仍持有主工作区 `apps/web/.next/lock` |
+| 构建 | `pnpm -F native exec expo export --platform ios --output-dir dist` | 通过 | 实际执行 |
+| 迁移 | 空库迁移 | 未运行 | edff135 没有改动迁移文件，批次测试已在临时空库执行过 |
+| E2E | `pnpm -F web exec playwright test e2e/github-users.spec.ts -g "saved profiles"` | 通过 | 本 feature 全部 6 个用例实际执行，16.2 秒，没有重跑。其余 30 个用例未运行，上次全量结果见批次测试 |
+| 清理 | 查询本地库 | 通过 | 跑完后 `e2e_` 用户 0 个，`e2e_` 账号的 `github_profile` 0 条，孤立的 `github_profile` 0 条 |
+
+GitHub 匿名额度：跑前剩 60，跑后剩 52，用了 8 次。
+
+### 验收标准覆盖
+
+| AC | 验证方式 | 结果 | 证据 |
+|----|----------|------|------|
+| AC1、AC2 | E2E `AC1, AC2: a saved user persists and cannot be saved twice` | 通过 | |
+| AC3 | 单元 `treats a renamed GitHub user as the same user`（内存假 db，turbo 缓存） | 通过 | 本次未实际执行，缓存对应的输入未变 |
+| AC4、AC6、AC7 | E2E `AC4, AC6, AC7: each account has its own list` | 通过 | |
+| AC5 | E2E `AC5: the latest save is listed first` | 通过 | |
+| AC8 | E2E `AC8: add and list return 401 without a session` | 通过 | |
+| AC9 | E2E `AC9: saving disables the search and save buttons`、`AC9: a list error appears once, with no toast` | 通过 | |
+
+### 失败与修复
+
+无失败，`fixRounds` 为 0。
