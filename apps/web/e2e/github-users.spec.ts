@@ -13,7 +13,13 @@ const LOGIN_URL = /\/login$/;
 const HTTP_NOT_FOUND = 404;
 const HTTP_OK = 200;
 const HTTP_UNAUTHORIZED = 401;
+const HTTP_INTERNAL_ERROR = 500;
 const LOOKUP_ROUTE = "**/trpc/githubProfiles.lookup*";
+const ADD_ROUTE = "**/trpc/githubProfiles.add*";
+const LIST_ROUTE = "**/trpc/githubProfiles.list*";
+const ALREADY_SAVED = "该用户已保存";
+const EMPTY_LIST = "还没有保存的用户。";
+const LIST_ERROR = "列表加载失败";
 const NOT_FOUND_MESSAGE = "找不到该 GitHub 用户";
 const SEARCHING = "正在搜索…";
 const TOAST_SETTLE_MS = 1000;
@@ -48,6 +54,27 @@ async function openSignedIn(page: Page) {
 async function search(page: Page, username: string) {
 	await page.getByLabel("GitHub 用户名").fill(username);
 	await page.getByRole("button", { exact: true, name: "搜索" }).click();
+}
+
+function saveButton(page: Page) {
+	return page.getByRole("button", { exact: true, name: "保存用户" });
+}
+
+function savedCard(page: Page) {
+	return page.locator('[data-slot="card"]').filter({
+		has: page.getByRole("heading", { name: "已保存用户" }),
+	});
+}
+
+function savedLinks(page: Page) {
+	return savedCard(page).getByRole("link");
+}
+
+// The lookup is mocked to spare GitHub's anonymous quota; add still reads GitHub.
+async function save(page: Page, username: string) {
+	await search(page, username);
+	await saveButton(page).click();
+	await expect(saveButton(page)).toHaveCount(0);
 }
 
 test.describe("access", () => {
@@ -182,5 +209,133 @@ test.describe("search", () => {
 		await expect(
 			page.getByRole("button", { exact: true, name: "搜索" })
 		).toBeEnabled();
+	});
+});
+
+test.describe("saved profiles", () => {
+	test("AC1, AC2: a saved user persists and cannot be saved twice", async ({
+		page,
+	}) => {
+		await openSignedIn(page);
+
+		await search(page, "octocat");
+		await saveButton(page).click();
+
+		await expect(saveButton(page)).toHaveCount(0);
+		await expect(savedLinks(page)).toHaveText(["@octocat"]);
+
+		await page.reload();
+		await expect(savedLinks(page)).toHaveText(["@octocat"]);
+
+		await search(page, "octocat");
+		await saveButton(page).click();
+
+		await expect(
+			page.getByRole("alert").filter({ hasText: ALREADY_SAVED })
+		).toHaveCount(1);
+		await expect(savedLinks(page)).toHaveText(["@octocat"]);
+	});
+
+	test("AC5: the latest save is listed first", async ({ page }) => {
+		await page.route(LOOKUP_ROUTE, fulfillProfile);
+		await openSignedIn(page);
+
+		await save(page, "octocat");
+		await expect(savedLinks(page)).toHaveText(["@octocat"]);
+		await save(page, "torvalds");
+
+		await expect(savedLinks(page)).toHaveText(["@torvalds", "@octocat"]);
+	});
+
+	test("AC4, AC6, AC7: each account has its own list", async ({
+		browser,
+		page,
+	}) => {
+		await page.route(LOOKUP_ROUTE, fulfillProfile);
+		await openSignedIn(page);
+		await expect(savedCard(page).getByText(EMPTY_LIST)).toBeVisible();
+		await save(page, "octocat");
+		await expect(savedLinks(page)).toHaveText(["@octocat"]);
+
+		const otherContext = await browser.newContext({ baseURL: WEB_ORIGIN });
+		const other = await otherContext.newPage();
+		await other.route(LOOKUP_ROUTE, fulfillProfile);
+		await openSignedIn(other);
+
+		await expect(savedCard(other).getByText(EMPTY_LIST)).toBeVisible();
+		await expect(savedLinks(other)).toHaveCount(0);
+
+		await save(other, "octocat");
+		await expect(savedLinks(other)).toHaveText(["@octocat"]);
+		await otherContext.close();
+	});
+
+	test("AC8: add and list return 401 without a session", async ({
+		request,
+	}) => {
+		const add = await request.post(`${SERVER_URL}/trpc/githubProfiles.add`, {
+			data: JSON.stringify("octocat"),
+			headers: { "Content-Type": "application/json" },
+		});
+		const list = await request.get(`${SERVER_URL}/trpc/githubProfiles.list`);
+
+		expect(add.status()).toBe(HTTP_UNAUTHORIZED);
+		expect(list.status()).toBe(HTTP_UNAUTHORIZED);
+	});
+
+	test("AC9: saving disables the search and save buttons", async ({ page }) => {
+		const { promise: released, resolve: release } =
+			Promise.withResolvers<void>();
+		await page.route(LOOKUP_ROUTE, fulfillProfile);
+		await page.route(ADD_ROUTE, async (route) => {
+			await released;
+			await route.fulfill({
+				headers: CORS_HEADERS,
+				json: [{ result: {} }],
+				status: HTTP_OK,
+			});
+		});
+		await openSignedIn(page);
+
+		await search(page, "ghost-user");
+		await saveButton(page).click();
+
+		await expect(saveButton(page)).toBeDisabled();
+		await expect(
+			page.getByRole("button", { exact: true, name: "搜索" })
+		).toBeDisabled();
+
+		release();
+		await expect(saveButton(page)).toHaveCount(0);
+	});
+
+	test("AC9: a list error appears once, with no toast", async ({ page }) => {
+		await page.route(LIST_ROUTE, (route) =>
+			route.fulfill({
+				headers: CORS_HEADERS,
+				json: [
+					{
+						error: {
+							code: -32_603,
+							data: {
+								code: "INTERNAL_SERVER_ERROR",
+								httpStatus: HTTP_INTERNAL_ERROR,
+							},
+							message: LIST_ERROR,
+						},
+					},
+				],
+				status: HTTP_INTERNAL_ERROR,
+			})
+		);
+		await openSignedIn(page);
+
+		await expect(
+			savedCard(page).getByRole("alert").filter({ hasText: LIST_ERROR })
+		).toHaveCount(1);
+		// Count once, without retrying: see the lookup error test above.
+		await page.waitForTimeout(TOAST_SETTLE_MS);
+		expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
+		expect(await page.getByText(LIST_ERROR).count()).toBe(1);
 	});
 });

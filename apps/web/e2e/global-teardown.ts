@@ -4,13 +4,14 @@ import { TEMP_USER_PREFIX, TEST_ACCOUNT } from "./helpers";
 
 /**
  * Leaves only the shared `test` account behind: deletes every throwaway user
- * (their accounts and sessions cascade) and the sessions the run opened for
- * `test`. Runs through the db package's Prisma CLI so it uses the same
+ * (their accounts and sessions cascade; `github_profile.ownerId` has no foreign
+ * key, so those rows go first) and the sessions the run opened for `test`. Runs through the db package's Prisma CLI so it uses the same
  * DATABASE_URL as the server.
  */
 export default function globalTeardown() {
 	const tempEmailPattern = `${TEMP_USER_PREFIX.replaceAll("_", "\\_")}%`;
 	const sql = `
+DELETE FROM "github_profile" WHERE "ownerId" IN (SELECT id FROM "user" WHERE email LIKE '${tempEmailPattern}');
 DELETE FROM "user" WHERE email LIKE '${tempEmailPattern}';
 DELETE FROM "session" WHERE "userId" IN (SELECT id FROM "user" WHERE username = '${TEST_ACCOUNT.username}');
 `;

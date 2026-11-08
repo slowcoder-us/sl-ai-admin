@@ -20,12 +20,27 @@ const githubUser = {
 
 const fetchMock = vi.fn<typeof fetch>();
 
-function caller(signedIn = true) {
-	const session = signedIn ? { user: { id: "user-1" } } : null;
+function caller(signedIn = true, db: unknown = {}, userId = "user-1") {
+	const session = signedIn ? { user: { id: userId } } : null;
 	return appRouter.createCaller({
-		db: {},
+		db,
 		session,
 	} as unknown as Context).githubProfiles;
+}
+
+/** Applies the same (ownerId, githubId) uniqueness as the real table. */
+function createDb() {
+	const saved = new Set<string>();
+	const createMany = vi.fn(
+		({ data }: { data: { githubId: string; ownerId: string } }) => {
+			const key = `${data.ownerId}:${data.githubId}`;
+			const count = saved.has(key) ? 0 : 1;
+			saved.add(key);
+			return Promise.resolve({ count });
+		}
+	);
+	const findMany = vi.fn(() => Promise.resolve([{ id: "profile-1" }]));
+	return { githubProfile: { createMany, findMany } };
 }
 
 function respondWith(body: unknown, status = HTTP_OK) {
@@ -146,5 +161,113 @@ describe("githubProfiles.lookup", () => {
 			code: "BAD_REQUEST",
 		});
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("githubProfiles.add", () => {
+	it("saves the latest GitHub profile under the signed-in account", async () => {
+		const db = createDb();
+		respondWith({ ...githubUser, name: "Renamed Cat" });
+
+		await caller(true, db).add("OCTOCAT");
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(db.githubProfile.createMany).toHaveBeenCalledWith({
+			data: {
+				avatarUrl: githubUser.avatar_url,
+				bio: "bio",
+				githubId: "583231",
+				location: "San Francisco",
+				name: "Renamed Cat",
+				ownerId: "user-1",
+				username: "octocat",
+			},
+			skipDuplicates: true,
+		});
+	});
+
+	it("reports a repeated save as CONFLICT", async () => {
+		const db = createDb();
+		respondWith(githubUser);
+		await caller(true, db).add("octocat");
+
+		respondWith(githubUser);
+		await expect(caller(true, db).add("octocat")).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: "该用户已保存",
+		});
+	});
+
+	it("treats a renamed GitHub user as the same user", async () => {
+		const db = createDb();
+		respondWith(githubUser);
+		await caller(true, db).add("octocat");
+
+		respondWith({ ...githubUser, login: "octocat-renamed" });
+		await expect(caller(true, db).add("octocat-renamed")).rejects.toMatchObject(
+			{ code: "CONFLICT" }
+		);
+	});
+
+	it("lets different accounts save the same GitHub user", async () => {
+		const db = createDb();
+		respondWith(githubUser);
+		await caller(true, db, "user-a").add("octocat");
+
+		respondWith(githubUser);
+		await expect(
+			caller(true, db, "user-b").add("octocat")
+		).resolves.toBeUndefined();
+	});
+
+	it.each([
+		[404, "NOT_FOUND", "找不到该 GitHub 用户"],
+		[403, "TOO_MANY_REQUESTS", RATE_LIMITED],
+		[500, "BAD_GATEWAY", UNAVAILABLE],
+	])(
+		"passes GitHub status %i through as %s without saving",
+		async (status, code, message) => {
+			const db = createDb();
+			respondWith({ message: "error" }, status);
+
+			await expect(caller(true, db).add("octocat")).rejects.toMatchObject({
+				code,
+				message,
+			});
+			expect(db.githubProfile.createMany).not.toHaveBeenCalled();
+		}
+	);
+
+	it("rejects signed-out callers without calling GitHub or saving", async () => {
+		const db = createDb();
+
+		await expect(caller(false, db).add("octocat")).rejects.toMatchObject({
+			code: "UNAUTHORIZED",
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(db.githubProfile.createMany).not.toHaveBeenCalled();
+	});
+});
+
+describe("githubProfiles.list", () => {
+	it("returns only the current account's records, newest first", async () => {
+		const db = createDb();
+
+		await expect(caller(true, db).list()).resolves.toEqual([
+			{ id: "profile-1" },
+		]);
+		expect(db.githubProfile.findMany).toHaveBeenCalledWith({
+			orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+			where: { ownerId: "user-1" },
+		});
+	});
+
+	it("rejects signed-out callers", async () => {
+		const db = createDb();
+
+		await expect(caller(false, db).list()).rejects.toMatchObject({
+			code: "UNAUTHORIZED",
+		});
+		expect(db.githubProfile.findMany).not.toHaveBeenCalled();
 	});
 });

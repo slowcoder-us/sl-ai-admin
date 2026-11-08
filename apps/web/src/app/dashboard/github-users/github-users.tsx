@@ -141,7 +141,11 @@ export function GithubUsers() {
 	const [deletingId, setDeletingId] = useState<string | null>(null);
 	const [search, setSearch] = useState("");
 	const [formatError, setFormatError] = useState<string | null>(null);
-	const profiles = useQuery(trpc.githubProfiles.list.queryOptions());
+	const profiles = useQuery(
+		trpc.githubProfiles.list.queryOptions(undefined, {
+			meta: { skipErrorToast: true },
+		})
+	);
 	const lookup = useQuery(
 		trpc.githubProfiles.lookup.queryOptions(search, {
 			enabled: search.length > 0,
