@@ -1,5 +1,9 @@
 "use client";
 
+import {
+	GITHUB_PROFILE_LIMITS,
+	githubUsernameSchema,
+} from "@sl-ai-admin/api/github-profile-rules";
 import { Button } from "@sl-ai-admin/ui/components/button";
 import {
 	Card,
@@ -98,20 +102,24 @@ function EditProfile({
 				<Input
 					autoComplete="off"
 					defaultValue={profile.name ?? ""}
-					maxLength={255}
+					maxLength={GITHUB_PROFILE_LIMITS.name}
 					name="name"
 				/>
 			</Label>
 			<Label>
 				简介
-				<Textarea defaultValue={profile.bio ?? ""} maxLength={500} name="bio" />
+				<Textarea
+					defaultValue={profile.bio ?? ""}
+					maxLength={GITHUB_PROFILE_LIMITS.bio}
+					name="bio"
+				/>
 			</Label>
 			<Label>
 				所在地
 				<Input
 					autoComplete="off"
 					defaultValue={profile.location ?? ""}
-					maxLength={255}
+					maxLength={GITHUB_PROFILE_LIMITS.location}
 					name="location"
 				/>
 			</Label>
@@ -139,10 +147,16 @@ export function GithubUsers() {
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [deletingId, setDeletingId] = useState<string | null>(null);
 	const [search, setSearch] = useState("");
-	const profiles = useQuery(trpc.githubProfiles.list.queryOptions());
+	const [formatError, setFormatError] = useState<string | null>(null);
+	const profiles = useQuery(
+		trpc.githubProfiles.list.queryOptions(undefined, {
+			meta: { skipErrorToast: true },
+		})
+	);
 	const lookup = useQuery(
 		trpc.githubProfiles.lookup.queryOptions(search, {
 			enabled: search.length > 0,
+			meta: { skipErrorToast: true },
 			refetchOnWindowFocus: false,
 			retry: false,
 		})
@@ -170,16 +184,24 @@ export function GithubUsers() {
 
 	function submitSearch(event: SubmitEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const username = String(
+		const parsed = githubUsernameSchema.safeParse(
 			new FormData(event.currentTarget).get("username")
-		).trim();
+		);
 		add.reset();
+		if (!parsed.success) {
+			setFormatError(parsed.error.issues[0]?.message ?? null);
+			return;
+		}
+		setFormatError(null);
+		const username = parsed.data;
 		if (username === search) {
 			lookup.refetch().catch(() => undefined);
 		} else {
 			setSearch(username);
 		}
 	}
+
+	const searchError = formatError ?? lookup.error?.message;
 
 	return (
 		<>
@@ -197,9 +219,7 @@ export function GithubUsers() {
 								autoCapitalize="none"
 								autoComplete="off"
 								id="github-username"
-								maxLength={39}
 								name="username"
-								required
 							/>
 							<Button
 								disabled={lookup.isFetching || add.isPending}
@@ -210,9 +230,9 @@ export function GithubUsers() {
 						</div>
 					</form>
 					{lookup.isFetching ? <p role="status">正在搜索…</p> : null}
-					{lookup.error ? <p role="alert">{lookup.error.message}</p> : null}
+					{searchError ? <p role="alert">{searchError}</p> : null}
 					{add.error ? <p role="alert">{add.error.message}</p> : null}
-					{lookup.data ? (
+					{lookup.data && !formatError ? (
 						<div className="flex flex-wrap items-start justify-between gap-3">
 							<ProfileDetails profile={lookup.data} />
 							<Button

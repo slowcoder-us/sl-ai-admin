@@ -91,7 +91,7 @@ sl-ai-admin/
 | `pnpm auth:generate` | 根据 Better Auth 配置重新生成 `auth.prisma` |
 | `pnpm env:generate` | 重新生成各包的 varlock 类型 `env.ts` |
 | `pnpm check` / `pnpm fix` | Ultracite 检查 / 自动修复 |
-| `pnpm test` | 单元测试（Vitest，turbo 跑各包的 `test` 脚本；目前在 `packages/auth`，用例放 `src/**/*.test.ts`） |
+| `pnpm test` | 单元测试（Vitest，turbo 跑各包的 `test` 脚本；目前在 `packages/auth`、`packages/api`，用例放 `src/**/*.test.ts`） |
 | `pnpm test:e2e` | Web 端到端测试（Playwright，用例在 `apps/web/e2e/`，`webServer` 会自动起 server :3000 和 web :3001，需本地 PostgreSQL 在运行） |
 | `pnpm -F native check-types` / `pnpm -F native exec expo export --platform ios --output-dir dist` | 移动端类型检查 / 打包检查（移动端没有 UI 自动化测试，改动后用这两条确认；`dist/` 已 gitignore；界面行为按 `specs/sl-ai-admin/03-native-username-auth/manual-checklist.md` 在模拟器手动验收） |
 
@@ -243,3 +243,8 @@ Most formatting and common issues are automatically fixed by Biome. Run `pnpm ex
 - [2026-11-03][移动端·鉴权] `@better-auth/expo` 的 `signOut` 在发请求前就清空 SecureStore 并把会话置空 → 离线也能本地退出，`signOut` 抛错可以忽略，之后再 `queryClient.clear()`
 - [2026-11-03][代码规范] Biome 类型推断误报：`useRef<InputRef>(null)` 后 `ref.current?.focus()` 被 `noUnnecessaryConditions` 判为多余 → 写成 `useRef<InputRef | null>(null)`；react-query 的 `isLoading` 也会被误判恒为 `false` → 先把状态算成枚举再查表
 - [2026-11-03][移动端·构建] Expo SDK 58 + pnpm monorepo：移动端引用内部包只需在 `apps/native/package.json` 加 `workspace:*` 依赖（如 `@sl-ai-admin/auth`），Metro 不用改 `metro.config.js` 就能解析 `@sl-ai-admin/auth/credentials` → 加完用「常用命令」里的 `expo export` 确认能打包
+- [2026-11-07][环境·数据库] 拉到新迁移后本地库不会自动更新，缺表时 tRPC 返回 500 → `pnpm -F @sl-ai-admin/db exec prisma migrate deploy`（只应用已提交的迁移，非 TTY 可用）
+- [2026-11-07][网页·E2E] Next 页面自带 `role=alert` 的 `__next-route-announcer__` → `getByRole("alert")` 要加 `.filter({ hasText })`，否则 strict mode 报错
+- [2026-11-07][网页·E2E] 断言「没有 toast」不能用会重试的 `toHaveCount(0)`：sonner toast 4 秒后消失，重试会等到它消失后误通过 → 等 1 秒后用 `expect(await locator.count()).toBe(0)`
+- [2026-11-07][网页·E2E] 用 `page.route` 模拟跨域 tRPC 请求时，`fulfill` 要带 `Access-Control-Allow-Origin: http://localhost:3001` 和 `Access-Control-Allow-Credentials: true`，响应体是批量格式的数组
+- [2026-11-07][网页·E2E] GitHub 用户相关用例依赖 GitHub 匿名额度（全量 `pnpm test:e2e` 约用 9 次），额度耗尽时这些用例会因限流失败，不是代码问题；`page.route` 只能模拟浏览器发起的 `githubProfiles.lookup`，`add` 由服务端请求 GitHub，模拟不了 → 跑 E2E 前查 `https://api.github.com/rate_limit`，不够就等 reset；新增用例除非要验证真实链路，否则都模拟 `lookup`；只需要“已保存的记录”时用 `apps/web/e2e/helpers.ts` 的 `insertGithubProfiles` 直接写库，不消耗额度
