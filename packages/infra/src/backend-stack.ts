@@ -31,26 +31,19 @@ import {
 	Vpc,
 } from "aws-cdk-lib/aws-ec2";
 import { DockerImageAsset, Platform } from "aws-cdk-lib/aws-ecr-assets";
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 import {
 	Architecture,
 	DockerImageCode,
 	DockerImageFunction,
 } from "aws-cdk-lib/aws-lambda";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
-import {
-	AuroraPostgresEngineVersion,
-	ClusterInstance,
-	Credentials,
-	DatabaseCluster,
-	DatabaseClusterEngine,
-} from "aws-cdk-lib/aws-rds";
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 import { Provider } from "aws-cdk-lib/custom-resources";
 import type { Construct } from "constructs";
 
 const DB_NAME = "sl_ai_admin";
 const APP_DB_USER = "sl_ai_app";
-const MIGRATION_USER = "sl_ai_admin";
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const dockerFile = "apps/server/Dockerfile";
 
@@ -64,6 +57,27 @@ export class BackendStack extends Stack {
 				"Public HTTPS origin of the Cloudflare Worker, without a trailing slash",
 		}).valueAsString;
 
+		const databaseHost = new CfnParameter(this, "DatabaseHost", {
+			allowedPattern: "[a-zA-Z0-9.-]+\\.rds\\.amazonaws\\.com",
+			description:
+				"Aurora Express endpoint from the database connectivity panel",
+		}).valueAsString;
+		const databaseResourceId = new CfnParameter(this, "DatabaseResourceId", {
+			allowedPattern: "cluster-[A-Za-z0-9]+",
+			description:
+				"Aurora DbClusterResourceId, not the cluster identifier or ARN",
+		}).valueAsString;
+		const databaseAdminUser = new CfnParameter(this, "DatabaseAdminUser", {
+			allowedPattern: "[a-z][a-z0-9_]{0,62}",
+			default: "postgres",
+		}).valueAsString;
+		const connectPolicy = (username: string) =>
+			new PolicyStatement({
+				actions: ["rds-db:connect"],
+				resources: [
+					`arn:${this.partition}:rds-db:${this.region}:${this.account}:dbuser:${databaseResourceId}/${username}`,
+				],
+			});
 		const vpc = new Vpc(this, "Vpc", {
 			createInternetGateway: false,
 			ipAddresses: IpAddresses.cidr("10.42.0.0/16"),
@@ -74,11 +88,6 @@ export class BackendStack extends Stack {
 					cidrMask: 24,
 					name: "Application",
 					subnetType: SubnetType.PRIVATE_WITH_EGRESS,
-				},
-				{
-					cidrMask: 24,
-					name: "Database",
-					subnetType: SubnetType.PRIVATE_ISOLATED,
 				},
 			],
 		});
@@ -108,13 +117,14 @@ export class BackendStack extends Stack {
 			subnetId: publicSubnet.subnetId,
 		});
 		nat.node.addDependency(publicSubnet.internetConnectivityEstablished);
-		for (const [index, subnet] of vpc.privateSubnets.entries()) {
-			new CfnRoute(this, `ApplicationEgress${index}`, {
-				destinationCidrBlock: "0.0.0.0/0",
-				natGatewayId: nat.ref,
-				routeTableId: subnet.routeTable.routeTableId,
-			});
-		}
+		const applicationEgressRoutes = vpc.privateSubnets.map(
+			(subnet, index) =>
+				new CfnRoute(this, `ApplicationEgress${index}`, {
+					destinationCidrBlock: "0.0.0.0/0",
+					natGatewayId: nat.ref,
+					routeTableId: subnet.routeTable.routeTableId,
+				})
+		);
 
 		const lambdaSecurity = new SecurityGroup(this, "LambdaSecurity", {
 			allowAllOutbound: false,
@@ -125,6 +135,11 @@ export class BackendStack extends Stack {
 			Port.tcp(443),
 			"GitHub API over HTTPS"
 		);
+		lambdaSecurity.addEgressRule(
+			Peer.anyIpv4(),
+			Port.tcp(5432),
+			"Aurora Express TLS gateway"
+		);
 		const bastionSecurity = new SecurityGroup(this, "BastionSecurity", {
 			allowAllOutbound: false,
 			vpc,
@@ -134,9 +149,14 @@ export class BackendStack extends Stack {
 			Port.tcp(443),
 			"Systems Manager over HTTPS"
 		);
+		bastionSecurity.addEgressRule(
+			Peer.anyIpv4(),
+			Port.tcp(5432),
+			"Aurora Express TLS gateway"
+		);
 		const privateSubnets = { subnetType: SubnetType.PRIVATE_WITH_EGRESS };
 		const bastion = new Instance(this, "DatabaseBastion", {
-			instanceType: new InstanceType("t4g.nano"),
+			instanceType: new InstanceType("t4g.micro"),
 			machineImage: MachineImage.latestAmazonLinux2023({
 				cpuType: AmazonLinuxCpuType.ARM_64,
 			}),
@@ -146,41 +166,7 @@ export class BackendStack extends Stack {
 			vpc,
 			vpcSubnets: privateSubnets,
 		});
-		const database = new DatabaseCluster(this, "Database", {
-			backup: { retention: Duration.days(7) },
-			credentials: Credentials.fromGeneratedSecret(MIGRATION_USER),
-			defaultDatabaseName: DB_NAME,
-			deletionProtection: true,
-			engine: DatabaseClusterEngine.auroraPostgres({
-				version: AuroraPostgresEngineVersion.VER_16_13,
-			}),
-			parameters: { "rds.force_ssl": "1" },
-			removalPolicy: RemovalPolicy.SNAPSHOT,
-			serverlessV2MaxCapacity: 4,
-			serverlessV2MinCapacity: 0.5,
-			storageEncrypted: true,
-			vpc,
-			vpcSubnets: { subnetType: SubnetType.PRIVATE_ISOLATED },
-			writer: ClusterInstance.serverlessV2("Writer", {
-				publiclyAccessible: false,
-			}),
-		});
-		database.connections.allowDefaultPortFrom(lambdaSecurity);
-		database.connections.allowDefaultPortFrom(bastionSecurity);
-		const adminSecret = database.secret;
-		if (!adminSecret) {
-			throw new Error("Aurora administrator secret is missing");
-		}
-
-		const appSecret = new Secret(this, "DatabaseAppSecret", {
-			generateSecretString: {
-				excludePunctuation: true,
-				generateStringKey: "password",
-				passwordLength: 48,
-				secretStringTemplate: "{}",
-			},
-			removalPolicy: RemovalPolicy.RETAIN,
-		});
+		bastion.addToRolePolicy(connectPolicy(databaseAdminUser));
 		const authSecret = new Secret(this, "AuthSecret", {
 			generateSecretString: {
 				excludePunctuation: true,
@@ -210,6 +196,8 @@ export class BackendStack extends Stack {
 				"!apps/fumadocs/package.json",
 				"docs",
 				"specs",
+				"aws任务",
+				"scripts",
 				"packages/infra/**",
 				"!packages/infra/package.json",
 			],
@@ -218,7 +206,8 @@ export class BackendStack extends Stack {
 			platform: Platform.LINUX_AMD64,
 		});
 		const databaseEnv = {
-			DB_HOST: database.clusterEndpoint.hostname,
+			DB_AUTH_MODE: "iam",
+			DB_HOST: databaseHost,
 			DB_NAME,
 			NODE_ENV: "production",
 		};
@@ -236,11 +225,7 @@ export class BackendStack extends Stack {
 			}),
 			environment: {
 				...databaseEnv,
-				APP_DB_PASSWORD: appSecret
-					.secretValueFromJson("password")
-					.unsafeUnwrap(),
-				DB_PASSWORD: adminSecret.secretValueFromJson("password").unsafeUnwrap(),
-				DB_USER: MIGRATION_USER,
+				DB_USER: databaseAdminUser,
 			},
 			logGroup: new LogGroup(this, "MigrationLogs", {
 				retention: RetentionDays.ONE_MONTH,
@@ -248,15 +233,22 @@ export class BackendStack extends Stack {
 			memorySize: 1024,
 			timeout: Duration.minutes(3),
 		});
-		migrationFunction.node.addDependency(database);
+		migrationFunction.addToRolePolicy(connectPolicy(databaseAdminUser));
 		const migrations = new Provider(this, "MigrationProvider", {
 			onEventHandler: migrationFunction,
 		});
 		const schema = new CustomResource(this, "DatabaseSchema", {
-			properties: { Release: image.assetHash },
+			properties: {
+				DatabaseHost: databaseHost,
+				DatabaseResourceId: databaseResourceId,
+				Release: image.assetHash,
+			},
 			resourceType: "Custom::PrismaMigrations",
 			serviceToken: migrations.serviceToken,
 		});
+		// The migration connects through NAT on its first invocation. Explicitly
+		// wait for the manually managed routes, not only the Lambda ENIs.
+		schema.node.addDependency(...applicationEgressRoutes);
 		const apiFunction = new DockerImageFunction(this, "ApiFunction", {
 			...lambdaVpc,
 			architecture: Architecture.X86_64,
@@ -270,15 +262,17 @@ export class BackendStack extends Stack {
 					.unsafeUnwrap(),
 				BETTER_AUTH_URL: webOrigin,
 				CORS_ORIGIN: webOrigin,
-				DB_PASSWORD: appSecret.secretValueFromJson("password").unsafeUnwrap(),
 				DB_USER: APP_DB_USER,
 			},
 			logGroup: new LogGroup(this, "ApiLogs", {
 				retention: RetentionDays.ONE_MONTH,
 			}),
 			memorySize: 1024,
-			timeout: Duration.seconds(15),
+			// Leave query time after IAM authentication and finish before the
+			// HTTP integration's default 29-second deadline.
+			timeout: Duration.seconds(28),
 		});
+		apiFunction.addToRolePolicy(connectPolicy(APP_DB_USER));
 		apiFunction.node.addDependency(schema);
 
 		const api = new HttpApi(this, "HttpApi");
@@ -302,11 +296,11 @@ export class BackendStack extends Stack {
 		new CfnOutput(this, "ApiOrigin", { value: api.apiEndpoint });
 		new CfnOutput(this, "BastionInstanceId", { value: bastion.instanceId });
 		new CfnOutput(this, "DatabaseEndpoint", {
-			value: database.clusterEndpoint.hostname,
+			value: databaseHost,
 		});
 		new CfnOutput(this, "DatabaseName", { value: DB_NAME });
-		new CfnOutput(this, "DatabaseAdminSecretArn", {
-			value: adminSecret.secretArn,
+		new CfnOutput(this, "ExpressDatabaseResourceId", {
+			value: databaseResourceId,
 		});
 	}
 }

@@ -3,15 +3,17 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
+    "auth:generate": "varlock run -- pnpm dlx auth@latest generate --config src/services.ts --output ../../packages/db/prisma/schema/auth.prisma --yes",
     "build": "tsdown",
     "check-types": "tsc --noEmit",
     "compile": "bun build --compile --no-compile-autoload-dotenv --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.mjs",
     "env:generate": "varlock codegen",
-    "auth:generate": "varlock run -- pnpm dlx auth@latest generate --config src/services.ts --output ../../packages/db/prisma/schema/auth.prisma --yes"
+    "start": "node dist/index.mjs",
+    "test": "tsx --test src/database-url.test.ts src/bootstrap-database.test.ts"
   },
   "dependencies": {
+    "@aws-sdk/rds-signer": "3.1166.0",
     "@hono/node-server": "^2.1.1",
     "@hono/trpc-server": "^0.4.2",
     "@sl-ai-admin/api": "workspace:*",
@@ -20,12 +22,14 @@
     "@trpc/server": "catalog:",
     "better-auth": "catalog:",
     "hono": "^4.13.7",
+    "pg": "^8.23.0",
     "varlock": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@sl-ai-admin/config": "workspace:*",
     "@types/node": "catalog:",
+    "@types/pg": "^8.23.1",
     "tsdown": "^0.23.0",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3"
