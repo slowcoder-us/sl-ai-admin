@@ -44,6 +44,23 @@ Aurora Express 是当前账号采用的数据库部署方式，不会修改本�
 4. 在 GitHub 打开仓库 → Settings → Secrets and variables → Actions。
 5. 发现 production 环境仍指向旧 AWS 账号、旧区域 `us-east-2` 和旧 Worker 地址，先清理再启用新流水线。
 
+### 前一阶段后端首次发布的操作顺序
+
+以下依据前面用户提供的执行日志及本次确认的生产堆栈整理；详细可复制命令见 [AuroraExpress部署操作](./AuroraExpress部署操作.md)。
+
+1. **准备 Mac 环境**：安装并启动 Docker Desktop（Apple Silicon），安装 AWS CLI，确认 `docker info` 同时有 Client 和 Server；登录 `happy-path` profile，用 `aws sts get-caller-identity` 核对账号。
+2. **准备项目**：`pnpm install --frozen-lockfile`，生成 Prisma Client。构建时 `postgresql://build@localhost/build` 只是生成代码所需的占位 URL，不会连接或修改本地库。
+3. **初始化 CDK**：在 `347076820926/ap-southeast-2` 执行 `cdk bootstrap`，创建 `CDKToolkit`。它存放后续部署用的 S3、ECR 和 CDK 角色；不是业务后端本身。
+4. **创建 Aurora Express**：运行 `scripts/prepare-aurora-express.sh`，在当前免费计划可用的 Express 模式中建立 Aurora Serverless 集群，启用 IAM 数据库认证和 Express 网关，写出 `/tmp/sl-ai-admin-express.json`。Express 创建集群时不能传 `database-name`，目标库由后面的迁移 Lambda 创建。
+5. **配置后端部署参数**：使用实际前端 Origin、Express Host、数据库资源 ID、管理员用户名；这些不是数据库密码。执行 `cdk diff`，再部署 `SlAiAdminBackend`。
+6. **CloudFormation 建立业务资源**：应用 VPC、公共出口子网、IGW、NAT、私有应用子网和路由、Lambda 所用安全组、SSM 跳板机、API Lambda、迁移 Lambda、HTTP API Gateway 和日志。当前跳板机用 `t4g.micro`；先前 `t4g.nano` 被账号的免费计划限制拒绝。
+7. **构建并发布镜像**：Docker 使用 Lambda Node.js 24 基础镜像、`linux/amd64` 平台，CDK 将构建产物发布到 bootstrap ECR。之前 ECR 500、Apple Silicon 下 amd64 构建失败是历史故障，不能把它们当作当前发布成功。
+8. **引导和迁移数据库**：迁移 Lambda 等待私有子网的 NAT 出网路由就绪，先通过 IAM/TLS 连接默认 `postgres` 库，再创建 `sl_ai_admin`，执行已提交的 Prisma migrations，配置 `sl_ai_app` 应用角色与相应表权限。管理角色和应用角色分开。
+9. **确认 CloudFormation 完成**：用户日志显示 `SlAiAdminBackend` 部署成功并输出本记录第 2 节的 API、数据库、跳板机信息；本次浏览器也确认它为 `CREATE_COMPLETE`。
+10. **连接前端**：在 `apps/web/wrangler.jsonc` 写入 `vars.AWS_API_ORIGIN`，推到 main 触发 Cloudflare 发布。浏览器请求自己的 `/api/auth/*` 和 `/trpc/*`，由 Worker/Next.js 代理到 AWS；用户已确认前端正常访问接口。
+
+数据库连接曾报约 5 秒超时；当前实现把 IAM 建连超时提高，并确保迁移在出网路由创建后执行。迁移命令的 IAM Token 需要 URI 编码并启用严格 TLS 校验。它们已包含在本次提交的代码里，后续应由 CI 重复使用，不要重新套用早期密码连接的模板。
+
 ## 4. 建立 AWS 与 GitHub 的连接（已完成）
 
 浏览器操作路径：AWS → CodeBuild → 左侧 Settings／设置 → Connections／连接 → Create connection／创建连接。
@@ -138,9 +155,9 @@ IAM 角色只允许该 CodeBuild 项目承担，使用指定 GitHub Connection�
 - [x] infra 类型检查与运行器模板合成通过。
 - [x] `SlAiAdminRunner` 为 `CREATE_COMPLETE`。
 - [x] CodeBuild 项目及 Webhook 创建成功。
-- [ ] 新流水线代码合入 main。
-- [ ] GitHub Actions 验证和后端部署成功。
-- [ ] AWS API 与 Cloudflare 代理健康检查通过。
+- [x] 新流水线代码合入 main（`04f801f`）。
+- [x] GitHub Actions 验证和后端部署成功（运行 #11）。
+- [x] AWS API 与 Cloudflare 代理健康检查通过。
 
 ## 9. 后续日常使用
 
@@ -155,3 +172,40 @@ IAM 角色只允许该 CodeBuild 项目承担，使用指定 GitHub Connection�
 - 11 个相关 TypeScript 文件的 Ultracite 检查通过，工作流 YAML 解析通过。
 - 对当前生产 `SlAiAdminBackend` 执行 CDK diff，结果为 `There were no differences`；新 CI 将沿用当前已经部署成功的后端定义。
 - 移除不再使用的 `packages/infra/github-oidc.yml` 模板。
+
+## 11. 首次真实运行记录
+
+代码提交 `04f801ff964032d3c6f653e12596102c519abdb5` 已推送到 main，自动触发 [Verify and deploy #11](https://github.com/slowcoder-us/sl-ai-admin/actions/runs/43430524413)。此次没有手动点击 Run workflow，验证的是 push 自动触发。
+
+执行顺序及观察结果：
+
+1. GitHub 托管运行器启动 verify，创建独立测试 PostgreSQL，安装依赖、生成 Prisma Client、应用测试迁移，完成类型检查、CDK synth、单元测试和浏览器端到端测试；verify 用时 2 分 51 秒并成功。
+2. verify 成功后，production 的 deploy 作业进入队列；CodeBuild 接收到指定用户与工作流的事件，自动启动临时 GitHub Actions 运行器。
+3. CodeBuild 检出 main 的本次提交，准备 Node.js 24 与 pnpm，首次依赖安装约 1 分 12 秒，完成 Varlock 类型生成和 Prisma Client 生成。
+4. 作业通过 `sts get-caller-identity` 核对 AWS 账号为 `347076820926`，并检查数据库部署参数完整。
+5. 自动运行 `cdk deploy SlAiAdminBackend`，通过当前账号 CDK bootstrap 部署角色更新 CloudFormation。
+6. 日志显示后端堆栈于 2026-11-13 03:10:21 HST 达到 `UPDATE_COMPLETE`，CDK 部署耗时 10.64 秒，总执行约 33.67 秒。
+7. 本次业务资源与已部署版本相同，复用已有 ECR 镜像，仅更新 CDK Metadata。没有新镜像变更，因此数据库迁移自定义资源也没有重复运行；以后镜像内容变化会更新迁移资源并应用已提交迁移。
+8. 直接访问 AWS API 根路径返回 `OK`；前端 `/login` 返回成功；前端 `/trpc/healthCheck` 返回的 `.result.data` 为 `OK`，JSON 校验输出 `true`。
+9. 完成 pnpm 缓存保存与清理后，页面显示 deploy 为 `succeeded in 5m 25s`。verify 和 deploy 两个作业均成功，首次 push 自动部署验收通过。
+
+前端仍由 Cloudflare 的 Git 集成发布，本次 GitHub Actions 没有调用 Cloudflare Token 或发布 Worker。
+
+### 后续如何发布接口改动
+
+1. 修改 `apps/server`、`packages/api`、`packages/auth` 或业务数据库代码。
+2. 如果改数据库 schema，先在本地创建 migration，再提交 migration 文件；不要在生产使用 `prisma migrate dev` 或 `db push`。
+3. 提交并推送到 main。PR 只执行验证，main 验证通过后自动部署。
+4. 到 GitHub → Actions → Verify and deploy 查看 verify 和 deploy；只有两个作业都成功才算完成自动发布。
+5. 如需重发同一版本，进入工作流 → Run workflow → 选择 main；仍需由可信 GitHub 用户触发。
+6. 若未来更换 API 来源地址，同步调整 `apps/web/wrangler.jsonc` 的 `vars.AWS_API_ORIGIN`，交由 Cloudflare Git 集成发布前端；后端工作流不会替你修改 Worker 变量。
+
+### 排错入口
+
+- GitHub CI 失败：先读失败的具体 step，部署作业不会继续执行。
+- deploy 一直排队：检查仓库级 `AWS_RUNNER_PROJECT`、CodeBuild Webhook、工作流名称、GitHub actor 数字 ID 和 production 分支规则。
+- CodeBuild 下载依赖慢：新机器的首次下载会较慢，先观察日志是否持续推进；不要直接判定为 IAM 权限错误。
+- CDK 发布失败：查看 CloudFormation 的第一条失败事件，再按具体资源处理。不要删除已正常运行的数据库或 CDKToolkit 来重试。
+- 数据库迁移或查询失败：查看对应 Lambda 的 CloudWatch 日志，确认 Express Host、资源 ID、IAM 用户、TLS 和出网路由；不要输出数据库 IAM Token。
+
+文档验收结果随后单独提交到 main，提交消息带 `[skip ci]`，避免仅补写记录就再触发一次 AWS 部署；这不会改变后续业务代码推送的自动发布规则。
