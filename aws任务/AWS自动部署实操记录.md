@@ -33,6 +33,12 @@ main 分支更新
 | 数据库资源 ID | `cluster-OIXWOSFDDFWKD4476OU23FJVCM` |
 | 数据库主机 | `sl-ai-admin-express.cluster-cj0uau028bpw.ap-southeast-2.rds.amazonaws.com` |
 | SSM 跳板机 | `i-06321abd2ab3120d3` |
+| 应用 VPC | `vpc-0534faf632b00d32a` |
+| 公共出口子网 | `subnet-0d12a5e63421cee30` |
+| 私有应用子网 1 | `subnet-0b30bbd1780c91fdd` |
+| 私有应用子网 2 | `subnet-0da506c0a8ab17f4b` |
+| IGW | `igw-02e392bb04b035698` |
+| NAT Gateway | `nat-012b27760dd673313` |
 
 Aurora Express 是当前账号采用的数据库部署方式，不会修改本地 PostgreSQL。它使用服务管理的网络，不能把它描述为已经满足“数据库与 Lambda 位于同一用户 VPC”；此前为适配免费计划，已接受这一网络区别。Lambda 仍部署在应用 VPC 的私有子网，按已部署的路由访问 Express 网关。
 
@@ -209,3 +215,5 @@ IAM 角色只允许该 CodeBuild 项目承担，使用指定 GitHub Connection�
 - 数据库迁移或查询失败：查看对应 Lambda 的 CloudWatch 日志，确认 Express Host、资源 ID、IAM 用户、TLS 和出网路由；不要输出数据库 IAM Token。
 
 文档验收结果随后单独提交到 main，提交消息带 `[skip ci]`，避免仅补写记录就再触发一次 AWS 部署；这不会改变后续业务代码推送的自动发布规则。
+
+网络核对：通过 `cloudformation list-stack-resources` 读取 `SlAiAdminBackend` 的实际资源，以上 VPC、三个子网、IGW、NAT 均为 `CREATE_COMPLETE`。这是后端首次部署时创建的应用网络，本次 `SlAiAdminRunner` 没有新增 VPC。
